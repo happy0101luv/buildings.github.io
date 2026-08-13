@@ -19,9 +19,7 @@ let authMode = "login";
 let emailCodeTimer = 0;
 let emailRegisterRequired = false;
 const params = new URLSearchParams(window.location.search);
-const requestedAuthMode = window.location.pathname === "/register" || params.get("mode") === "register" ? "register" : params.get("mode") === "reset" ? "reset" : "login";
-const rawNextPath = params.get("next") || "/app";
-const nextPath = rawNextPath.startsWith("/") && !rawNextPath.startsWith("//") ? rawNextPath : "/app";
+const requestedAuthMode = window.location.pathname.includes("/register") || params.get("mode") === "register" ? "register" : params.get("mode") === "reset" ? "reset" : "login";
 const nativeFetch = window.fetch.bind(window);
 window.fetch = (input, init = {}) => {
   const headers = new Headers(init?.headers || {});
@@ -54,6 +52,9 @@ function applyAuthMode(mode) {
   const resetting = authMode === "reset";
   usernameField.hidden = resetting;
   usernameInput.required = !resetting;
+  usernameInput.type = "email";
+  usernameInput.autocomplete = "email";
+  usernameInput.placeholder = "请输入邮箱";
   passwordField.hidden = false;
   passwordInput.required = true;
   passwordInput.autocomplete = registering || resetting ? "new-password" : "current-password";
@@ -135,15 +136,44 @@ sendEmailCodeButton.addEventListener("click", async () => {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (authMode === "login") {
-    window.location.href = "./app/";
-    return;
-  }
   const data = new FormData(form);
   button.disabled = true;
   buttonLabel.textContent = authMode === "register" ? "正在建立" : authMode === "reset" ? "正在重置" : "正在验证";
   error.hidden = true;
   try {
+    if (!window.WanwuCloud?.configured) throw new Error("Supabase 尚未配置，请先完成云端设置");
+    const email = String(data.get("username") || data.get("email") || "").trim();
+    const password = String(data.get("password") || "");
+    if (authMode === "login") {
+      await window.WanwuCloud.signIn(email, password);
+      window.location.href = "./app/";
+      return;
+    }
+    if (authMode === "register") {
+      if (password !== String(data.get("confirmPassword") || "")) throw new Error("两次输入的密码不一致");
+      await window.WanwuCloud.signUp(email, password, email.split("@")[0]);
+      error.textContent = "注册成功；如果启用了邮箱确认，请先查收验证邮件";
+      error.hidden = false;
+      button.disabled = false;
+      buttonLabel.textContent = "建立账号";
+      return;
+    }
+    if (authMode === "reset") {
+      const hasRecoverySession = window.location.hash.includes("access_token") || (await window.WanwuCloud.session()).authenticated;
+      if (hasRecoverySession && password) {
+        if (password !== String(data.get("confirmPassword") || "")) throw new Error("两次输入的密码不一致");
+        await window.WanwuCloud.updatePassword(password);
+        applyAuthMode("login");
+        error.textContent = "密码已重置，请重新登录";
+      } else {
+        await window.WanwuCloud.resetPassword(String(data.get("email") || "").trim());
+        error.textContent = "重置邮件已发送，请查收邮箱";
+      }
+      error.hidden = false;
+      button.disabled = false;
+      buttonLabel.textContent = "重置密码";
+      return;
+    }
     const endpoint = authMode === "reset" ? "./api/auth/password/reset" : `./api/auth/${authMode}`;
     const payload =
       authMode === "reset"

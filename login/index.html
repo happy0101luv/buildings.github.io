@@ -31,8 +31,8 @@
         </div>
         <form id="loginForm">
           <label id="usernameField">
-            <span>账号 / OPERATOR ID</span>
-            <input name="username" autocomplete="username" required placeholder="请输入账号" />
+            <span>邮箱 / EMAIL</span>
+            <input name="username" type="email" autocomplete="email" required placeholder="请输入邮箱" />
           </label>
           <label id="passwordField">
             <span>密码 / ACCESS CODE</span>
@@ -72,6 +72,9 @@
         </div>
       </aside>
     </main>
-    <script src="./login.js?v=7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./supabase-config.js"></script>
+    <script src="./supabase-adapter.js"></script>
+    <script src="./login.js?v=8"></script>
   </body>
 </html>

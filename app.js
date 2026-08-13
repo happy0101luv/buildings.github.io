@@ -51,6 +51,50 @@ window.fetch = (input, init = {}) => {
     [/^\/api\/pickups\/brands$/, "./api-snapshots/pickup-brands.json"],
     [/^\/api\/pickups$/, "./api-snapshots/pickups.json"],
   ];
+  if (apiPath === "/api/auth/session" && method === "GET" && window.WanwuCloud?.configured) {
+    return window.WanwuCloud.session().then((payload) => new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    }));
+  }
+  if (apiPath === "/api/records" && method === "GET" && window.WanwuCloud?.configured) {
+    return window.WanwuCloud.loadCollection().then((payload) => new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    }));
+  }
+  if (apiPath === "/api/records" && method === "PUT" && window.WanwuCloud?.configured) {
+    const requestBody = JSON.parse(init?.body || "{}");
+    return window.WanwuCloud.saveCollection(requestBody.records || [], requestBody.expectedVersion || 0)
+      .then((payload) => new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      }))
+      .catch((error) => new Response(JSON.stringify({
+        message: error.message,
+        records: error.data?.records,
+        version: error.data?.version,
+      }), {
+        status: error.statusCode || 500,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      }));
+  }
+  if (apiPath === "/api/upload-image" && method === "POST" && window.WanwuCloud?.configured) {
+    const requestBody = JSON.parse(init?.body || "{}");
+    return window.WanwuCloud.uploadImage(requestBody.dataUrl)
+      .then((payload) => new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      }))
+      .catch((error) => new Response(JSON.stringify({ message: error.message }), {
+        status: 500,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      }));
+  }
+  if (apiPath === "/api/auth/logout" && method === "POST") {
+    window.WanwuCloud?.signOut().catch(() => {});
+    return Promise.resolve(new Response(null, { status: 204 }));
+  }
   if (method === "GET") {
     const snapshot = snapshots.find(([pattern]) => pattern.test(apiPath));
     if (snapshot) input = snapshot[1];
@@ -1038,7 +1082,7 @@ async function hydrateRecordsFromServer() {
     if (!sessionResponse.ok) throw new Error(`session hydration failed: ${sessionResponse.status}`);
     const session = await sessionResponse.json();
     if (!session.authenticated || !session.user?.username) {
-      window.location.reload();
+      window.location.href = "./login/";
       return;
     }
     currentUsername = session.user.username;
@@ -3684,6 +3728,7 @@ function setDefaultFormDate() {
 function showModal(record = null) {
   editingRecordId = record?.id || "";
   ui.recordForm.reset();
+  ui.recordForm.dataset.storagePath = record?.storagePath || "";
   ui.submitRecordButton.disabled = false;
   ui.modalKicker.textContent = record ? "EDIT ARCHIVE ENTRY" : "NEW ARCHIVE ENTRY";
   ui.modalTitle.textContent = record ? "编辑收藏记录" : "记录一笔收藏";
@@ -3723,6 +3768,7 @@ function hideModal() {
   editingRecordId = "";
   ui.modalBackdrop.hidden = true;
   ui.recordForm.reset();
+  ui.recordForm.dataset.storagePath = "";
   ui.submitRecordButton.disabled = false;
   ui.modalKicker.textContent = "NEW ARCHIVE ENTRY";
   ui.modalTitle.textContent = "记录一笔收藏";
@@ -4031,8 +4077,9 @@ async function uploadImageFile(file) {
       body: JSON.stringify({ dataUrl }),
     });
     if (!res.ok) throw new Error("upload failed");
-    const { imageUrl } = await res.json();
+    const { imageUrl, storagePath } = await res.json();
     ui.recordForm.elements.imageUrl.value = imageUrl;
+    ui.recordForm.dataset.storagePath = storagePath || "";
     refreshImageThumb();
     const saveLabel = ui.submitRecordLabel?.textContent || "保存";
     setRecognizeHint(`图片已上传，点「${saveLabel}」写入资料库`);
@@ -4322,6 +4369,7 @@ ui.recordForm.addEventListener("submit", async (event) => {
     date: form.get("date"),
     dueDate: status === "预定中" ? form.get("dueDate") : "",
     imageUrl: form.get("imageUrl").trim(),
+    storagePath: ui.recordForm.dataset.storagePath || existingRecord?.storagePath || "",
     catalogId: selectedCatalogId || "",
   };
   const catalogSync = selectedCatalogSyncFromRecordForm(form);
@@ -4399,6 +4447,7 @@ document.querySelector("#imageFileInput")?.addEventListener("change", (e) => {
 });
 document.querySelector("#imageClearBtn")?.addEventListener("click", () => {
   ui.recordForm.elements.imageUrl.value = "";
+  ui.recordForm.dataset.storagePath = "";
   refreshImageThumb();
 });
 ui.recordForm.elements.imageUrl?.addEventListener("input", refreshImageThumb);
@@ -4685,7 +4734,14 @@ ui.recordList.addEventListener("click", async (event) => {
     });
     if (!ok) return;
     records = records.filter((item) => item.id !== record.id);
-    saveRecords("删除收藏");
+    const synced = await saveRecords("删除收藏");
+    if (synced === false) {
+      records.push(record);
+      renderAll();
+      showToast("删除未同步，请检查网络后重试");
+      return;
+    }
+    if (record.storagePath) window.WanwuCloud?.deleteImage(record.storagePath).catch(() => {});
     renderAll();
     showToast("收藏记录已删除");
     return;
@@ -4793,8 +4849,10 @@ document.querySelector("#restorePrevious").addEventListener("click", restorePrev
 ui.importFile.addEventListener("change", () => {
   if (ui.importFile.files[0]) importRecords(ui.importFile.files[0]);
 });
-document.querySelector("#logoutButton")?.addEventListener("click", async () => {
-  navigator.sendBeacon?.(LOGOUT_ENDPOINT);
+document.querySelector("#logoutButton")?.addEventListener("click", async (event) => {
+  event.preventDefault();
+  await window.WanwuCloud?.signOut().catch(() => {});
+  window.location.href = "./";
 });
 
 applyTheme(getStoredTheme());
