@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111111" />
+    <title>玩物不丧志 | 收藏玩家的模型图鉴与收藏看板</title>
+    <meta
+      name="description"
+      content="玩物不丧志是为收藏玩家准备的模型图鉴、收藏记录、预定追踪与玩具资讯看板，网页端和小程序端数据同步。"
+    />
+    <link rel="stylesheet" href="./landing.css?v=20" />
+  </head>
+  <body>
+    <div class="global-spotlight"></div>
+    <header class="site-header">
+      <a class="site-brand" href="/" aria-label="玩物不丧志首页">
+        <img src="./assets/brand/wanwu_full_logo_light.png" alt="玩物不丧志" />
+      </a>
+      <nav class="site-nav" aria-label="首页导航">
+        <a href="#features">功能</a>
+        <a href="#catalog">图鉴</a>
+        <a href="#sync">双端同步</a>
+        <a href="#roadmap">链路</a>
+      </nav>
+      <div class="site-actions">
+        <a class="ghost-link" href="/login">登录</a>
+        <a class="solid-link" href="/register">注册</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero-section" aria-labelledby="heroTitle">
+        <img class="hero-bg" src="./assets/hangar-bg.jpg" alt="" />
+        <div class="hero-shade"></div>
+        <div class="hero-grid"></div>
+        <div class="hero-inner">
+          <div class="hero-copy">
+            <p class="kicker" data-reveal><span></span> COLLECTOR DATABASE / WEB + MINI PROGRAM</p>
+            <div class="hero-logo-card">
+              <div class="hero-wordmark" aria-label="玩物不丧志">玩物不丧志</div>
+              <strong>记录每一份热爱。</strong>
+            </div>
+            <h1 id="heroTitle" class="split-text">收藏玩家的私人资料库</h1>
+            <div class="mini-program-entry" aria-label="小程序入口">
+              <img class="mini-qr" src="./assets/brand/wanwu_miniprogram_qr.jpg" alt="玩物不丧志小程序二维码" />
+              <div>
+                <b>小程序已打通</b>
+                <span>微信搜索「玩物不丧志」即可进入，网页端和小程序端使用同一套云端数据。</span>
+              </div>
+            </div>
+            <p class="hero-lead">
+              记录收藏、关联图鉴、追踪预定、订阅玩具资讯，把分散在订单、相册和官网里的资料沉淀成真正可用的收藏档案。
+            </p>
+            <div class="hero-cta">
+              <a class="primary-cta magnetic" href="/app">
+                <span>进入收藏看板</span>
+                <i data-lucide="arrow-up-right"></i>
+              </a>
+              <a class="secondary-cta magnetic" href="/login">登录账号</a>
+            </div>
+            <div class="hero-stats" aria-label="站点能力概览">
+              <div>
+                <strong id="catalogTotal">12000+</strong>
+                <span>图鉴条目</span>
+              </div>
+              <div>
+                <strong>Web / 小程序</strong>
+                <span>同一套数据</span>
+              </div>
+              <div>
+                <strong>说明书</strong>
+                <span>在线化链路</span>
+              </div>
+            </div>
+          </div>
+
+          <aside class="hero-console" aria-label="产品界面预览">
+            <div class="console-top">
+              <span>LIVE ARCHIVE</span>
+              <b>SYNCED</b>
+            </div>
+            <div class="console-screen">
+              <div class="screen-hero">
+                <p>ANNUAL ACQUISITION REPORT</p>
+                <strong data-count-to="10149">¥ 10,149</strong>
+                <span>8 件藏品 · 0 项预定追踪中</span>
+              </div>
+              <div class="screen-list" id="previewCatalog">
+                <article>
+                  <img src="./assets/products/catalog/493f4045c4ebd22183d9685cd275adcad470320d.jpg" alt="" />
+                  <div><b>模型图鉴关联</b><span>收藏记录 / 图鉴资料</span></div>
+                </article>
+                <article>
+                  <img src="./assets/products/catalog/139c85c078ee6e7f655c9ee55d6e053df420116b.jpg" alt="" />
+                  <div><b>小程序同步</b><span>微信搜索「玩物不丧志」</span></div>
+                </article>
+                <article>
+                  <img src="./assets/products/catalog/75bf3765b6f970d0e16c3cca1a82227cefcd6ee1.webp" alt="" />
+                  <div><b>预定与补款追踪</b><span>到期提醒 / 待补款</span></div>
+                </article>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section-band intro-band" data-reveal>
+        <div class="section-head">
+          <p class="kicker"><span></span> WHY IT EXISTS</p>
+          <h2 class="split-text">收藏不只是买回来，也要记得清、找得到、对得上。</h2>
+        </div>
+        <p>
+          很多玩家的收藏分散在相册、订单、聊天记录和各种官网页面里。玩物不丧志把这些信息整理成一套可查询、可维护、可同步的收藏数据库，让每一件藏品都有自己的来源、状态、价格、图鉴和资料。
+        </p>
+      </section>
+
+      <section class="showcase-section" id="showcase">
+        <div class="section-head">
+          <p class="kicker"><span></span> INSIDE THE APP</p>
+          <h2 class="split-text">真实界面，一眼看懂。</h2>
+        </div>
+        <div class="showcase-stage">
+          <div class="stage-frame">
+            <img class="stage-img active" data-tab="dashboard" src="./assets/landing/shot-dashboard.jpg" alt="总览看板：年度收藏投入与新品速递" />
+            <img class="stage-img" data-tab="catalog" src="./assets/landing/shot-catalog.jpg" alt="模型图鉴：按品牌 / IP / 分级检索的模型卡片" loading="lazy" />
+            <img class="stage-img" data-tab="collection" src="./assets/landing/shot-collection.jpg" alt="收藏库：状态、价格与图鉴关联" loading="lazy" />
+            <img class="stage-img" data-tab="news" src="./assets/landing/shot-news.jpg" alt="玩具情报：种草墙与频道订阅" loading="lazy" />
+          </div>
+          <p class="stage-caption" id="stageCaption">总览看板 · 年度收藏投入与新品速递</p>
+        </div>
+        <div class="showcase-tabs" role="tablist" aria-label="界面切换">
+          <button class="active" data-tab="dashboard" type="button"><i data-lucide="layout-dashboard"></i><span>总览</span></button>
+          <button data-tab="catalog" type="button"><i data-lucide="book-open"></i><span>图鉴</span></button>
+          <button data-tab="collection" type="button"><i data-lucide="boxes"></i><span>收藏库</span></button>
+          <button data-tab="news" type="button"><i data-lucide="newspaper"></i><span>资讯</span></button>
+        </div>
+      </section>
+
+      <section class="feature-section" id="features">
+        <div class="section-head">
+          <p class="kicker"><span></span> CORE MODULES</p>
+          <h2 class="split-text">目前已经打通的主要功能</h2>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card magnetic">
+            <i data-lucide="boxes"></i>
+            <h3>收藏记录</h3>
+            <p>记录已入库、预定、补款和总价，支持按年份、分类、状态查看自己的收藏投入。</p>
+          </article>
+          <article class="feature-card magnetic">
+            <i data-lucide="book-open"></i>
+            <h3>模型图鉴</h3>
+            <p>沉淀官方资料、本土化名称、搜索俗名和分类体系，录入藏品时可以直接关联图鉴。</p>
+          </article>
+          <article class="feature-card magnetic">
+            <i data-lucide="newspaper"></i>
+            <h3>玩具资讯</h3>
+            <p>聚合新品、预定、出货和社媒动态，支持频道订阅，减少被无关资讯淹没的时间。</p>
+          </article>
+          <article class="feature-card magnetic">
+            <i data-lucide="file-search"></i>
+            <h3>说明书在线化</h3>
+            <p>把说明书从链接变成可在线查看的资料入口，后续会继续补齐更多品类和页图。</p>
+          </article>
+          <article class="feature-card magnetic">
+            <i data-lucide="search-check"></i>
+            <h3>玩家式搜索</h3>
+            <p>面向真实搜索习惯优化：MB、MG、FIX、俗称、外号和本土叫法都逐步写入搜索词。</p>
+          </article>
+          <article class="feature-card magnetic">
+            <i data-lucide="shield-check"></i>
+            <h3>云端资料库</h3>
+            <p>收藏数据写入云端，网页和小程序共用同一套接口，换设备也能继续管理。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="catalog-section" id="catalog">
+        <div class="catalog-copy">
+          <p class="kicker"><span></span> MODEL CATALOG</p>
+          <h2 class="split-text">图鉴不是翻译表，而是玩家能用的检索系统。</h2>
+          <p>
+            图鉴会按照品牌、IP、分级/产品线分层，并持续补充本土化名称、俗称、发售时间、图片、说明书和关联商品。目标不是“堆数据”，而是让玩家用自己的叫法也能搜到正确的东西。
+          </p>
+          <a href="/app" class="text-link magnetic">进入图鉴看板 <i data-lucide="arrow-right"></i></a>
+        </div>
+        <div class="catalog-wall" aria-label="图鉴条目示例">
+          <figure>
+            <img src="./assets/products/catalog/75bf3765b6f970d0e16c3cca1a82227cefcd6ee1.webp" alt="" />
+            <figcaption>拼装模型</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/products/catalog/0a5e9614baea84f77cbaf9ff1a537fd7235a6ef2.webp" alt="" />
+            <figcaption>成品模型</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/products/catalog/139c85c078ee6e7f655c9ee55d6e053df420116b.jpg" alt="" />
+            <figcaption>特摄可动</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/products/catalog/36a18502d86692806f765d65ed9eb69ec6b1ee76.jpg" alt="" />
+            <figcaption>机体图鉴</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/products/catalog/acda5d27ac1462c3b2eb68dfc970d8f5b26f7514.webp" alt="" />
+            <figcaption>玩家俗称</figcaption>
+          </figure>
+          <figure>
+            <img src="./assets/products/catalog/6902d43ce7d2ab6ad89f4cf7dbf06a1823884317.webp" alt="" />
+            <figcaption>资料沉淀</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="sync-section" id="sync">
+        <div class="section-head">
+          <p class="kicker"><span></span> CROSS DEVICE</p>
+          <h2 class="split-text">网页端做维护，小程序端随手查。</h2>
+        </div>
+        <div class="sync-layout">
+          <div class="device-frame desktop-frame">
+            <div class="frame-bar"><span></span><span></span><span></span></div>
+            <div class="frame-content">
+              <strong>网页端</strong>
+              <p>适合批量整理图鉴、维护收藏、处理资讯和做数据管理。</p>
+              <ul>
+                <li>完整图鉴筛选</li>
+                <li>记录新增 / 编辑</li>
+                <li>资讯订阅维护</li>
+              </ul>
+            </div>
+          </div>
+          <div class="device-frame phone-frame">
+            <div class="phone-notch"></div>
+            <div class="phone-content">
+              <strong>小程序端</strong>
+              <p>适合移动端快速查图鉴、看资讯、记录新到货。微信搜索「玩物不丧志」即可进入。</p>
+              <ul>
+                <li>收藏概览</li>
+                <li>图鉴搜索</li>
+                <li>玩具资讯</li>
+              </ul>
+            </div>
+          </div>
+          <div class="sync-note">
+            <b>同一账号，同一套数据。</b>
+            <span>网页端和小程序端走同一套云端接口，收藏记录、图鉴关联和资讯订阅会保持同步。</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="roadmap-section" id="roadmap">
+        <div class="section-head">
+          <p class="kicker"><span></span> DATA PIPELINE</p>
+          <h2 class="split-text">接下来继续扩展的方向</h2>
+        </div>
+        <div class="roadmap-list">
+          <article>
+            <span>01</span>
+            <h3>图鉴治理</h3>
+            <p>继续校准名称、分类、俗称和搜索词，让玩家搜索习惯优先于机械翻译。</p>
+          </article>
+          <article>
+            <span>02</span>
+            <h3>资料完整度</h3>
+            <p>持续补充说明书、角色设定、商品详情和同系列关联，提升图鉴详情页价值。</p>
+          </article>
+          <article>
+            <span>03</span>
+            <h3>双端体验</h3>
+            <p>优化小程序移动端录入、图片上传、登录注册和不同手机屏幕的排版适配。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="final-cta">
+        <div>
+          <p class="kicker"><span></span> START ARCHIVING</p>
+          <h2 class="split-text">把你的收藏，从一堆记录变成一座资料库。</h2>
+        </div>
+        <div class="final-actions">
+          <a class="primary-cta magnetic" href="/register">创建账号</a>
+          <a class="secondary-cta magnetic" href="/login">已有账号登录</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>玩物不丧志 · COLLECTIBLE TOYS DATABASE</span>
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026041716号</a>
+    </footer>
+
+    <script src="./assets/lucide.min.js"></script>
+    <script src="./assets/vendor/gsap.min.js"></script>
+    <script src="./assets/vendor/ScrollTrigger.min.js"></script>
+    <script src="./landing.js?v=12"></script>
+  </body>
+</html>
