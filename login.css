@@ -1,0 +1,428 @@
+:root {
+  --bg: #071014;
+  --panel: rgba(10, 23, 28, 0.96);
+  --line: rgba(117, 198, 210, 0.22);
+  --cyan: #64d3e1;
+  --text: #edf7f5;
+  --muted: #82989c;
+  --dark: #557176;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+  --font-tech: "Arial Narrow", "DIN Alternate", "Segoe UI", "PingFang SC", sans-serif;
+  --font-display: "Arial Narrow", "DIN Condensed", Impact, "PingFang SC", sans-serif;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  display: grid;
+  min-height: 100vh;
+  margin: 0;
+  place-items: center;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 78% 16%, rgba(34, 148, 167, 0.16), transparent 25rem),
+    linear-gradient(135deg, #050b0e, var(--bg));
+  font-family: var(--font-body);
+}
+
+.login-shell {
+  display: grid;
+  width: min(960px, calc(100vw - 34px));
+  min-height: 570px;
+  grid-template-columns: minmax(330px, 0.86fr) minmax(0, 1.14fr);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: rgba(7, 15, 18, 0.82);
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.5);
+}
+
+.login-panel { position: relative; padding: 34px; background: var(--panel); }
+.panel-scanline { height: 2px; margin: -34px -34px 30px; background: linear-gradient(90deg, var(--cyan), transparent); }
+.login-brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { display: grid; width: 41px; height: 41px; place-items: center; border: 1px solid var(--cyan); color: var(--cyan); font-size: 29px; font-weight: 300; }
+.login-brand strong { display: block; font-family: var(--font-tech); font-size: 25px; letter-spacing: 2px; }
+.login-brand strong span { color: var(--cyan); }
+.login-brand small, footer span { color: var(--dark); font-family: var(--font-tech); font-size: 10px; letter-spacing: 2px; }
+.login-copy { margin-top: 69px; }
+.login-copy p, label span { color: var(--cyan); font-family: var(--font-tech); font-size: 11px; font-weight: 700; letter-spacing: 1.8px; }
+h1 { margin: 7px 0 9px; font-size: 28px; letter-spacing: 2px; }
+.login-copy span { color: var(--muted); font-size: 12px; line-height: 1.8; }
+form { margin-top: 10px; }
+.auth-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 24px; }
+.auth-tab {
+  height: 34px;
+  margin: 0;
+  border-color: var(--line);
+  color: var(--muted);
+  background: rgba(2, 10, 13, 0.48);
+  font-size: 11px;
+}
+.auth-tab.active { border-color: rgba(100, 211, 225, 0.62); color: var(--cyan); background: rgba(23, 140, 160, 0.14); }
+.auth-tab:disabled { cursor: not-allowed; opacity: 0.45; }
+label { display: block; margin-top: 16px; }
+label span { display: block; margin-bottom: 7px; color: var(--dark); }
+input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--line);
+  outline: 0;
+  padding: 0 12px;
+  color: var(--text);
+  background: rgba(2, 10, 13, 0.65);
+  font: inherit;
+}
+input:focus { border-color: rgba(100, 211, 225, 0.75); box-shadow: 0 0 0 2px rgba(100, 211, 225, 0.08); }
+.email-code-row { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 8px; }
+.btn-line {
+  height: 44px;
+  border: 1px solid var(--line);
+  color: var(--signal-red, var(--cyan));
+  background: transparent;
+  font: 700 12px var(--font-body);
+  cursor: pointer;
+}
+.btn-line:disabled { cursor: wait; opacity: 0.6; }
+.login-error { margin: 13px 0 -3px; color: #e47b71; font-size: 11px; }
+.submit-auth {
+  display: flex;
+  width: 100%;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+  border: 1px solid rgba(100, 211, 225, 0.66);
+  color: #eaffff;
+  background: linear-gradient(135deg, #178ca0, #0b5a69);
+  font: 700 13px var(--font-body);
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+.submit-auth:hover { filter: brightness(1.12); }
+.submit-auth:disabled { cursor: wait; opacity: 0.72; }
+.submit-auth b { color: var(--cyan); font-family: var(--font-tech); font-size: 20px; }
+footer { position: absolute; bottom: 30px; display: flex; align-items: center; gap: 8px; }
+footer i { width: 7px; height: 7px; background: #78c9a2; box-shadow: 0 0 12px #78c9a2; }
+.login-visual { position: relative; overflow: hidden; }
+.login-visual img { width: 100%; height: 100%; object-fit: cover; object-position: 67% center; }
+.visual-overlay { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(7, 16, 20, 0.95), rgba(7, 16, 20, 0.2) 55%), linear-gradient(0deg, rgba(7, 16, 20, 0.72), transparent); }
+.visual-copy { position: absolute; right: 30px; bottom: 29px; text-align: right; }
+.visual-copy p, .visual-copy small { color: var(--cyan); font: 700 11px var(--font-tech); letter-spacing: 2px; }
+.visual-copy strong { display: block; margin: 8px 0; font: 700 57px/0.82 var(--font-display); letter-spacing: 1px; }
+.visual-copy strong span { color: var(--cyan); }
+
+@media (max-width: 720px) {
+  .login-shell { min-height: 620px; grid-template-columns: 1fr; }
+  .login-panel { z-index: 1; background: rgba(10, 23, 28, 0.94); }
+  .login-visual { position: absolute; inset: 0; opacity: 0.2; }
+  .login-copy { margin-top: 67px; }
+}
+
+/* ==========================================================================
+   玩物不丧志 · VI SKIN — light form panel, dark mech showcase half.
+   ========================================================================== */
+:root {
+  --bg: #f3f1ec;
+  --panel: #ffffff;
+  --line: rgba(20, 17, 15, 0.13);
+  --cyan: #c62828;
+  --text: #16120f;
+  --muted: #6c675e;
+  --dark: #a7a195;
+  --carbon: #14110f;
+  --signal-red: #c62828;
+}
+
+body { background: var(--bg); color: var(--text); }
+.login-shell { border: 1px solid var(--line); background: #fff; box-shadow: 0 28px 90px rgba(20, 17, 15, 0.18); }
+.login-panel { background: #fff; }
+.panel-scanline { background: linear-gradient(90deg, var(--signal-red), transparent); }
+.brand-mark { border: 1px solid var(--carbon); color: var(--signal-red); background: var(--bg); }
+.login-brand strong { color: var(--carbon); font-weight: 800; }
+.login-brand strong span { color: var(--signal-red); }
+.login-brand small, footer span { color: var(--muted); }
+.login-copy p, label span { color: var(--signal-red); }
+h1 { color: var(--carbon); }
+.login-copy span { color: var(--muted); }
+.auth-tab { border: 1px solid var(--line); color: var(--muted); background: var(--bg); }
+.auth-tab.active { border-color: rgba(198, 40, 40, 0.5); color: var(--signal-red); background: rgba(198, 40, 40, 0.08); }
+label span { color: var(--muted); }
+input { color: var(--carbon); background: var(--bg); border: 1px solid var(--line); }
+input:focus { border-color: rgba(198, 40, 40, 0.7); box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.1); }
+.login-error { color: var(--signal-red); }
+.submit-auth { border: 1px solid var(--signal-red); color: #fff; background: var(--signal-red); }
+.submit-auth:hover { filter: brightness(1.06); background: #a01f1f; }
+.submit-auth b { color: #fff; }
+footer i { background: var(--signal-red); box-shadow: 0 0 10px rgba(198, 40, 40, 0.6); }
+/* keep the right visual half dark (mech showcase); just retune its accents to red/beige */
+.visual-overlay { background: linear-gradient(90deg, rgba(20, 17, 15, 0.95), rgba(20, 17, 15, 0.18) 58%), linear-gradient(0deg, rgba(20, 17, 15, 0.7), transparent); }
+.visual-copy p, .visual-copy small { color: var(--signal-red); }
+.visual-copy strong { color: var(--warm-white, #f7f7f5); }
+.visual-copy strong span { color: var(--signal-red); }
+
+@media (max-width: 720px) {
+  .login-panel { background: #fff; }
+}
+
+/* Codex VI refresh — match the dashboard skin and tighten interaction states. */
+:root {
+  --bg: #f2eee6;
+  --panel: #fffefa;
+  --line: rgba(17, 17, 17, 0.13);
+  --cyan: #c62828;
+  --text: #151515;
+  --muted: #6d675d;
+  --dark: #a9a299;
+  --carbon: #111111;
+  --warm-white: #f7f7f5;
+  --signal-red: #c62828;
+  --metal-beige: #c8b08a;
+}
+
+body {
+  background:
+    linear-gradient(rgba(17, 17, 17, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 17, 17, 0.022) 1px, transparent 1px),
+    var(--bg);
+  background-size: 34px 34px, 34px 34px, auto;
+}
+
+.login-shell {
+  width: min(980px, calc(100vw - 34px));
+  border-radius: 8px;
+  border-color: rgba(17, 17, 17, 0.12);
+  background: var(--panel);
+  box-shadow: 0 26px 70px rgba(17, 17, 17, 0.16);
+}
+
+.login-panel {
+  padding: 34px 36px;
+  background: var(--panel);
+}
+
+.panel-scanline {
+  height: 4px;
+  margin: -34px -36px 28px;
+  background: repeating-linear-gradient(-45deg, var(--signal-red) 0 10px, var(--carbon) 10px 20px);
+}
+
+.login-brand {
+  gap: 13px;
+}
+
+.brand-mark {
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border-radius: 8px;
+  border-color: rgba(17, 17, 17, 0.16);
+  background: var(--warm-white);
+  box-shadow: 0 8px 18px rgba(17, 17, 17, 0.08);
+}
+
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.login-brand strong {
+  color: var(--carbon);
+  font-family: var(--font-body);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.login-brand strong span {
+  color: var(--carbon);
+}
+
+.login-brand small {
+  color: var(--signal-red);
+}
+
+.login-copy {
+  margin-top: 62px;
+}
+
+.login-copy p,
+label span {
+  color: var(--signal-red);
+}
+
+h1 {
+  color: var(--carbon);
+  font-size: 30px;
+  letter-spacing: 0;
+}
+
+.login-copy span {
+  color: var(--muted);
+}
+
+.auth-tabs {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 24px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--warm-white);
+}
+
+.auth-tab {
+  height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.auth-tab.active {
+  color: #fff;
+  background: var(--carbon);
+}
+
+label {
+  margin-top: 15px;
+}
+
+label span {
+  color: var(--muted);
+}
+
+input {
+  height: 44px;
+  border-radius: 6px;
+  background: var(--warm-white);
+}
+
+input:focus {
+  border-color: rgba(198, 40, 40, 0.56);
+  box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.08);
+}
+
+.sms-code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 8px;
+}
+
+.send-code-btn {
+  height: 44px;
+  border: 1px solid rgba(198, 40, 40, 0.35);
+  border-radius: 6px;
+  color: var(--signal-red);
+  background: rgba(198, 40, 40, 0.08);
+  font: 700 12px var(--font-body);
+  cursor: pointer;
+}
+
+.send-code-btn:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.submit-auth {
+  height: 46px;
+  border-radius: 6px;
+  background: var(--signal-red);
+  box-shadow: 0 10px 22px rgba(198, 40, 40, 0.18);
+}
+
+.submit-auth:hover {
+  background: #a61f1f;
+  filter: none;
+  transform: translateY(-1px);
+}
+
+.submit-auth:active {
+  transform: translateY(0);
+}
+
+footer {
+  position: static;
+  margin-top: 26px;
+  color: var(--muted);
+}
+
+.login-visual {
+  background: var(--carbon);
+}
+
+.login-visual::before {
+  position: absolute;
+  inset: 24px;
+  z-index: 1;
+  border: 1px solid rgba(247, 247, 245, 0.16);
+  content: "";
+  pointer-events: none;
+}
+
+.visual-overlay {
+  background:
+    linear-gradient(90deg, rgba(17, 17, 17, 0.96), rgba(17, 17, 17, 0.28) 55%),
+    linear-gradient(0deg, rgba(17, 17, 17, 0.82), transparent);
+}
+
+.visual-copy {
+  z-index: 2;
+}
+
+.visual-copy p,
+.visual-copy small {
+  color: var(--metal-beige);
+}
+
+.visual-copy strong {
+  color: var(--warm-white);
+  font-size: 54px;
+}
+
+.visual-copy strong span {
+  color: var(--signal-red);
+}
+
+@media (max-width: 720px) {
+  .login-shell {
+    min-height: 620px;
+    border-radius: 8px;
+  }
+
+  .login-panel {
+    padding: 30px 24px;
+  }
+
+  .panel-scanline {
+    margin: -30px -24px 26px;
+  }
+
+  .login-copy {
+    margin-top: 56px;
+  }
+
+  .auth-tabs,
+  .sms-code-row {
+    grid-template-columns: 1fr;
+  }
+
+  .login-visual {
+    opacity: 0.18;
+  }
+}
+
+/* ICP 备案号（工信部要求：首页可见、超链接到 beian.miit.gov.cn） */
+footer { flex-wrap: wrap; }
+.icp-beian {
+  width: 100%;
+  margin-top: 4px;
+  color: var(--muted);
+  font-family: var(--font-tech);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-decoration: none;
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+.icp-beian:hover { opacity: 1; text-decoration: underline; }

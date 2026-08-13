@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <base href="../" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#081014" />
+    <title>玩物不丧志 | 登录</title>
+    <link rel="stylesheet" href="./login.css?v=8" />
+  </head>
+  <body>
+    <main class="login-shell">
+      <section class="login-panel">
+        <div class="panel-scanline"></div>
+        <header class="login-brand">
+          <div class="brand-mark"><img src="./assets/brand/wanwu_mark.png" alt="" /></div>
+          <div>
+            <strong>玩物<span>不丧志</span></strong>
+            <small>COLLECTOR DATABASE</small>
+          </div>
+        </header>
+        <div class="login-copy">
+          <p>SECURE ACCESS TERMINAL</p>
+          <h1 id="authTitle">进入收藏机库</h1>
+          <span id="authDescription">登录后继续管理你的收藏记录、预定计划与补款提醒。</span>
+        </div>
+        <div class="auth-tabs" role="tablist" aria-label="账号操作">
+          <button class="auth-tab active" type="button" role="tab" aria-selected="true" data-auth-mode="login">账号登录</button>
+          <button class="auth-tab" type="button" role="tab" aria-selected="false" data-auth-mode="register">注册机库</button>
+          <button class="auth-tab" type="button" role="tab" aria-selected="false" data-auth-mode="reset">找回密码</button>
+        </div>
+        <form id="loginForm">
+          <label id="usernameField">
+            <span>账号 / OPERATOR ID</span>
+            <input name="username" autocomplete="username" required placeholder="请输入账号" />
+          </label>
+          <label id="passwordField">
+            <span>密码 / ACCESS CODE</span>
+            <input name="password" type="password" autocomplete="current-password" required placeholder="请输入密码" />
+          </label>
+          <label id="confirmPasswordField" hidden>
+            <span>确认密码 / CONFIRM CODE</span>
+            <input name="confirmPassword" type="password" autocomplete="new-password" placeholder="请再次输入密码" />
+          </label>
+          <label id="emailField" hidden>
+            <span>绑定邮箱 / RECOVERY EMAIL</span>
+            <input name="email" type="email" autocomplete="email" placeholder="请输入已绑定邮箱" />
+          </label>
+          <label id="emailCodeField" hidden>
+            <span>邮箱验证码 / VERIFY CODE</span>
+            <div class="email-code-row">
+              <input name="code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" />
+              <button class="btn-line" id="sendEmailCode" type="button">发送验证码</button>
+            </div>
+          </label>
+          <p class="login-error" id="loginError" hidden></p>
+          <button class="submit-auth" type="submit" id="loginButton"><span>授权进入</span> <b>→</b></button>
+        </form>
+        <footer>
+          <i></i>
+          <span>HANGAR DATABASE / SECURE LINK</span>
+          <a class="icp-beian" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026041716号</a>
+        </footer>
+      </section>
+      <aside class="login-visual">
+        <img src="./assets/hangar-bg.jpg" alt="" />
+        <div class="visual-overlay"></div>
+        <div class="visual-copy">
+          <p>MS HANGAR / ONLINE</p>
+          <strong>COLLECTION<br /><span>CONTROL</span></strong>
+          <small>PRIVATE ARCHIVE TERMINAL</small>
+        </div>
+      </aside>
+    </main>
+    <script src="./login.js?v=7"></script>
+  </body>
+</html>

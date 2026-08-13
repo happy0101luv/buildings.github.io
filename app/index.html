@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <base href="../" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a1014" />
+    <title>玩物不丧志 | 模型收藏看板</title>
+    <script>
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("hangar07-theme-v1") === "night" ? "night" : "day";
+      } catch {
+        document.documentElement.dataset.theme = "day";
+      }
+    </script>
+    <link rel="stylesheet" href="./styles.css?v=127" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand brand-home-link" href="./" aria-label="返回玩物不丧志首页">
+          <div class="brand-mark"><img src="./assets/brand/wanwu_mark.png" alt="" /></div>
+          <div>
+            <strong>玩物<span>不丧志</span></strong>
+            <small>COLLECTOR DATABASE</small>
+          </div>
+        </a>
+
+        <nav class="side-nav" aria-label="主要导航">
+          <button class="nav-item active" data-view="dashboard">
+            <i data-lucide="layout-dashboard"></i>
+            <span>总览</span>
+          </button>
+          <button class="nav-item" data-view="collection">
+            <i data-lucide="boxes"></i>
+            <span>收藏库</span>
+            <b id="collectionCount">0</b>
+          </button>
+          <button class="nav-item" data-view="preorders">
+            <i data-lucide="radar"></i>
+            <span>预定追踪</span>
+            <b class="warning" id="preorderCount">0</b>
+          </button>
+          <button class="nav-item" data-view="calendar">
+            <i data-lucide="calendar-days"></i>
+            <span>补款日历</span>
+          </button>
+          <button class="nav-item" data-view="catalog">
+            <i data-lucide="book-open"></i>
+            <span>模型图鉴</span>
+          </button>
+          <button class="nav-item" data-view="contributions">
+            <i data-lucide="badge-check"></i>
+            <span>图鉴贡献</span>
+          </button>
+          <button class="nav-item" data-view="news">
+            <i data-lucide="newspaper"></i>
+            <span>玩具情报</span>
+          </button>
+          <button class="nav-item" data-view="pickup" hidden>
+            <i data-lucide="scissors"></i>
+            <span>取件台</span>
+          </button>
+          <button class="nav-item nav-admin" id="infoReviewNav" data-view="infoReview" hidden>
+            <i data-lucide="radio-tower"></i>
+            <span>情报审核</span>
+          </button>
+          <button class="nav-item nav-admin" id="adminNav" data-view="admin" hidden>
+            <i data-lucide="shield"></i>
+            <span>账号看板</span>
+          </button>
+        </nav>
+
+        <div class="side-section">
+          <p>收藏分类</p>
+          <button class="category-filter active" data-category="全部">
+            <span class="category-dot all"></span>全部藏品
+          </button>
+          <button class="category-filter" data-category="高达模型">
+            <span class="category-dot gundam"></span>高达模型
+          </button>
+          <button class="category-filter" data-category="机娘">
+            <span class="category-dot mecha-girl"></span>机娘
+          </button>
+          <button class="category-filter" data-category="兵人/人偶">
+            <span class="category-dot figure"></span>兵人 / 人偶
+          </button>
+          <button class="category-filter" data-category="变形金刚">
+            <span class="category-dot transformers"></span>变形金刚
+          </button>
+        </div>
+
+        <div class="sidebar-data-actions">
+          <p>资料保险箱</p>
+          <button id="exportData">
+            <i data-lucide="download"></i>
+            <span>导出备份</span>
+          </button>
+          <button id="copyData">
+            <i data-lucide="copy"></i>
+            <span>复制备份</span>
+          </button>
+          <button id="importData">
+            <i data-lucide="upload"></i>
+            <span>导入恢复</span>
+          </button>
+          <button id="restorePrevious">
+            <i data-lucide="history"></i>
+            <span>恢复上版</span>
+          </button>
+          <small id="backupStatus">正在建立快照...</small>
+          <input id="importFile" type="file" accept="application/json,.json" hidden />
+        </div>
+
+        <div class="sidebar-bottom">
+          <div class="database-state">
+            <span class="pulse"></span>
+            <div>
+              <strong id="databaseStateTitle">云端资料库</strong>
+              <small id="databaseStateHint">正在连接...</small>
+            </div>
+          </div>
+          <button class="icon-btn" id="resetData" title="重置示例数据" aria-label="重置示例数据">
+            <i data-lucide="rotate-ccw"></i>
+          </button>
+        </div>
+        <a class="sidebar-beian" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026041716号</a>
+      </aside>
+      <div class="sidebar-scrim" id="sidebarScrim" hidden></div>
+
+      <main class="main-content">
+        <header class="topbar">
+          <a class="mobile-brand brand-home-link" href="./" aria-label="返回玩物不丧志首页">
+            <div class="brand-mark"><img src="./assets/brand/wanwu_mark.png" alt="" /></div>
+            <strong>玩物<span>不丧志</span></strong>
+          </a>
+          <button class="menu-toggle" id="menuToggle" aria-label="展开菜单">
+            <i data-lucide="menu"></i>
+          </button>
+          <div class="breadcrumb">
+            <span>COLLECTOR DATABASE</span>
+            <i data-lucide="chevron-right"></i>
+            <strong id="viewLabel">总览</strong>
+          </div>
+          <div class="topbar-actions">
+            <label class="search-box">
+              <i data-lucide="search"></i>
+              <input id="searchInput" type="search" placeholder="搜索藏品..." />
+            </label>
+            <label class="year-select">
+              <i data-lucide="calendar-range"></i>
+              <select id="yearSelect" aria-label="选择年份"></select>
+            </label>
+            <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换夜间模式" aria-pressed="false" title="切换夜间模式">
+              <i data-lucide="moon"></i>
+              <span>夜间</span>
+            </button>
+            <button class="primary-btn" id="openAddModal">
+              <i data-lucide="plus"></i>
+              <span class="btn-label">记录一笔</span>
+            </button>
+            <div class="account-chip" id="accountAvatarChip" title="头像由小程序审核通过后同步">
+              <span class="account-avatar" id="accountAvatar"><i data-lucide="user-round"></i></span>
+              <b id="currentUserLabel">...</b>
+            </div>
+            <a class="logout-btn" id="logoutButton" href="./" title="退出到官网首页" aria-label="退出到官网首页">
+              <i data-lucide="log-out"></i>
+            </a>
+          </div>
+        </header>
+
+        <section class="account-security-notice" id="accountSecurityNotice" hidden>
+          <div>
+            <p class="section-kicker">ACCOUNT SECURITY</p>
+            <h2 id="accountSecurityTitle">请绑定邮箱</h2>
+            <span id="accountSecurityText">绑定后忘记密码时可通过邮箱验证码找回账号。</span>
+          </div>
+          <button class="settle-btn" id="openAccountSecurity" type="button">去绑定</button>
+        </section>
+
+        <section class="hero">
+          <img src="./assets/hangar-bg.jpg" alt="" class="hero-image" />
+          <div class="hero-overlay"></div>
+          <div class="hero-grid"></div>
+          <div class="hero-content">
+            <p class="eyebrow"><span></span> ANNUAL ACQUISITION REPORT</p>
+            <h1><b id="heroYear">2026</b> 年度收藏投入</h1>
+            <div class="hero-amount">
+              <small>¥</small><strong id="annualTotal">0</strong>
+            </div>
+            <p class="hero-caption">
+              <span id="heroItems">0 件藏品</span>
+              <i></i>
+              <span id="heroPreorders">0 项预定追踪中</span>
+            </p>
+          </div>
+          <div class="hero-right">
+            <span class="mecha-label">MS HANGAR / ONLINE</span>
+            <div class="target-lines"></div>
+          </div>
+        </section>
+
+        <section class="dashboard-news-rail" id="dashboardNewsRail" aria-label="新品资讯速递">
+          <div class="dashboard-news-head">
+            <div>
+              <p class="section-kicker">NEW INTEL</p>
+              <h2>新品情报速递</h2>
+            </div>
+            <button class="dashboard-news-more" id="dashboardNewsMore" type="button">
+              <span>查看更多</span>
+              <i data-lucide="arrow-right"></i>
+            </button>
+          </div>
+          <div class="dashboard-news-scroll" id="dashboardNewsList">
+            <p class="dashboard-news-loading">正在同步新品资讯...</p>
+          </div>
+        </section>
+
+        <section class="dashboard-layout">
+          <div class="dashboard-main">
+            <section class="view-intro" id="viewIntro">
+              <div>
+                <p class="section-kicker" id="viewKicker">COLLECTION ARCHIVE</p>
+                <h2 id="viewTitle">收藏库</h2>
+                <p id="viewDescription">查看并管理本年度已入库与预定中的全部收藏。</p>
+              </div>
+              <span id="viewCount">0 ITEMS</span>
+            </section>
+
+            <div class="metric-grid">
+              <article class="metric-card">
+                <div class="metric-icon blue"><i data-lucide="package-check"></i></div>
+                <div>
+                  <p>本年已购入</p>
+                  <strong id="purchaseCount">0 <small>件</small></strong>
+                  <span id="purchaseValue">¥0 已支付</span>
+                </div>
+              </article>
+              <article class="metric-card">
+                <div class="metric-icon amber"><i data-lucide="scan-line"></i></div>
+                <div>
+                  <p>预定追踪中</p>
+                  <strong id="trackingCount">0 <small>件</small></strong>
+                  <span id="depositValue">待补款 0 · 待到货 0</span>
+                </div>
+              </article>
+              <article class="metric-card alert">
+                <div class="metric-icon red"><i data-lucide="alarm-clock"></i></div>
+                <div>
+                  <p>待补款金额</p>
+                  <strong id="balanceValue">¥0</strong>
+                  <span id="balanceHint">暂无待补款项目</span>
+                </div>
+              </article>
+            </div>
+
+            <section class="panel spending-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="section-kicker">PAYMENT TIMELINE</p>
+                  <h2>月度投入趋势</h2>
+                </div>
+                <div class="legend">
+                  <span><i class="paid"></i>已支付</span>
+                  <span><i class="forecast"></i>预计补款</span>
+                </div>
+              </div>
+              <div class="chart-wrap">
+                <div class="chart-scale">
+                  <span>¥10k</span>
+                  <span>¥7.5k</span>
+                  <span>¥5k</span>
+                  <span>¥2.5k</span>
+                  <span>0</span>
+                </div>
+                <div class="chart-grid"></div>
+                <div class="chart-bars" id="chartBars"></div>
+              </div>
+            </section>
+
+            <section class="panel calendar-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="section-kicker">PAYMENT CALENDAR</p>
+                  <h2>年度补款日历</h2>
+                </div>
+                <div class="calendar-summary">
+                  <span>按预计补款日期归档</span>
+                  <i data-lucide="calendar-check"></i>
+                </div>
+              </div>
+              <div class="calendar-grid" id="calendarGrid"></div>
+            </section>
+
+            <section class="panel records-panel">
+              <div class="panel-header records-heading">
+                <div>
+                  <p class="section-kicker">RECENT ACQUISITIONS</p>
+                  <h2>收藏记录</h2>
+                </div>
+                <div class="record-tabs" role="tablist">
+                  <button class="record-tab active" data-status="全部">全部</button>
+                  <button class="record-tab" data-status="已入库">已入库</button>
+                  <button class="record-tab" data-status="预定中">预定中</button>
+                </div>
+              </div>
+              <div class="record-list" id="recordList"></div>
+              <div class="empty-state" id="emptyState">
+                <i data-lucide="package-open"></i>
+                <h3>还没有匹配的记录</h3>
+                <p>换个筛选条件，或者记录一笔新的收藏。</p>
+              </div>
+            </section>
+          </div>
+
+          <aside class="dashboard-aside">
+            <section class="panel payment-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="section-kicker">PREORDER TASKS</p>
+                  <h2>预定待办</h2>
+                </div>
+                <i class="header-icon" data-lucide="list-checks"></i>
+              </div>
+              <div class="payment-list" id="paymentList"></div>
+            </section>
+
+            <section class="arsenal-note">
+              <div class="arsenal-top">
+                <i data-lucide="shield-check"></i>
+                <span>COLLECTION PROTOCOL</span>
+              </div>
+              <h3>理性扩充机库</h3>
+              <p>每一次预定，都要为未来的补款预留弹药。</p>
+              <div class="arsenal-rule">
+                <span>本月预留建议</span>
+                <strong id="reserveHint">¥0</strong>
+              </div>
+            </section>
+          </aside>
+        </section>
+
+        <section class="panel admin-panel" id="adminPanel" hidden>
+          <div class="panel-header">
+            <div>
+              <p class="section-kicker">ADMIN · OPS BOARD</p>
+              <h2>账号看板</h2>
+            </div>
+            <button class="settle-btn" id="adminRefresh" type="button">刷新</button>
+          </div>
+
+          <nav class="admin-tabs" id="adminTabs" role="tablist" aria-label="后台模块">
+            <button class="admin-tab active" type="button" data-pane="overview">概览</button>
+            <button class="admin-tab" type="button" data-pane="accounts">注册账号</button>
+            <button class="admin-tab" type="button" data-pane="ops">维护状态</button>
+            <button class="admin-tab" type="button" data-pane="catalogSubmissions">图鉴建档<span class="admin-tab-badge" id="adminCatalogSubmissionBadge" hidden>0</span></button>
+            <button class="admin-tab" type="button" data-pane="contributions">图鉴贡献<span class="admin-tab-badge" id="adminContributionBadge" hidden>0</span></button>
+            <button class="admin-tab" type="button" data-pane="feedback">用户反馈<span class="admin-tab-badge" id="adminFeedbackBadge" hidden>0</span></button>
+            <button class="admin-tab" type="button" data-pane="submissions">取件表投稿<span class="admin-tab-badge" id="adminSubmissionBadge" hidden>0</span></button>
+            <button class="admin-tab" type="button" data-pane="updates">更新公告</button>
+          </nav>
+
+          <div class="admin-pane active" data-pane="overview">
+            <div class="admin-summary" id="adminSummary"></div>
+            <section class="admin-card admin-access-card" id="adminAccessSummary">
+              <p class="admin-update-empty">正在读取用户活跃分布…</p>
+            </section>
+          </div>
+
+          <div class="admin-pane" data-pane="accounts" hidden>
+            <div class="admin-section">
+              <div class="admin-section-head admin-section-head-row">
+                <div>
+                  <p class="section-kicker">ADMIN · ACCOUNTS</p>
+                  <h3>注册账号</h3>
+                </div>
+                <span class="admin-section-note">默认展示 20 个账号，避免一屏挤满。</span>
+              </div>
+              <div class="admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>账号</th>
+                      <th>藏品数</th>
+                      <th>预定中</th>
+                      <th>累计已支付</th>
+                      <th>待补款</th>
+                      <th>最近登录</th>
+                      <th>注册时间</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminTableBody"></tbody>
+                </table>
+              </div>
+              <div class="admin-account-pager" id="adminAccountPager"></div>
+            </div>
+          </div>
+
+          <div class="admin-pane" data-pane="ops" hidden>
+            <div class="admin-ops-grid">
+              <section class="admin-card" id="adminCatalogOps">
+                <p class="admin-update-empty">正在读取图鉴维护状态…</p>
+              </section>
+              <section class="admin-card" id="adminNewsOps">
+                <p class="admin-update-empty">正在读取资讯抓取状态…</p>
+              </section>
+            </div>
+          </div>
+
+          <div class="admin-pane" data-pane="feedback" hidden>
+            <section class="admin-card admin-card-full" id="adminFeedbackOps">
+              <p class="admin-update-empty">正在读取用户反馈…</p>
+            </section>
+          </div>
+
+          <div class="admin-pane" data-pane="contributions" hidden>
+            <section class="admin-card admin-card-full" id="adminContributionOps">
+              <p class="admin-update-empty">正在读取图鉴贡献…</p>
+            </section>
+          </div>
+
+          <div class="admin-pane" data-pane="catalogSubmissions" hidden>
+            <section class="admin-card admin-card-full" id="adminCatalogSubmissionOps">
+              <p class="admin-update-empty">正在读取图鉴建档草稿…</p>
+            </section>
+          </div>
+
+          <div class="admin-pane" data-pane="submissions" hidden>
+            <section class="admin-card admin-card-full" id="adminPickupSubmissions">
+              <p class="admin-update-empty">正在读取取件表投稿…</p>
+            </section>
+          </div>
+
+          <div class="admin-pane" data-pane="updates" hidden>
+            <div class="admin-updates">
+              <div class="admin-section-head">
+                <div>
+                  <p class="section-kicker">ADMIN · CHANGELOG</p>
+                  <h3>更新公告</h3>
+                </div>
+              </div>
+              <form class="admin-update-form" id="adminUpdateForm">
+                <label>
+                  <span>更新标题</span>
+                  <input name="title" type="text" maxlength="80" placeholder="例如：修复夜间模式资讯卡片文字" required />
+                </label>
+                <label>
+                  <span>类型</span>
+                  <select name="type">
+                    <option value="fix">修复</option>
+                    <option value="feature">新增</option>
+                    <option value="source">资讯源</option>
+                    <option value="ops">运维</option>
+                    <option value="note">备注</option>
+                  </select>
+                </label>
+                <label class="wide">
+                  <span>更新内容</span>
+                  <textarea name="body" rows="4" maxlength="2000" placeholder="记录这次更新做了什么、修复了什么、还有哪些注意点。" required></textarea>
+                </label>
+                <button class="settle-btn" type="submit">记录更新</button>
+              </form>
+              <div class="admin-update-list" id="adminUpdateList"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel contribution-center" id="contributionPanel" hidden>
+          <div class="panel-header contribution-center-head">
+            <div>
+              <p class="section-kicker">CATALOG CONTRIBUTION</p>
+              <h2>图鉴贡献</h2>
+              <span>你协助完善图鉴的记录、段位和采纳通知会同步到小程序。</span>
+            </div>
+            <button class="settle-btn" id="contributionRefresh" type="button">刷新</button>
+          </div>
+          <div class="contribution-layout">
+            <section class="contribution-rank-card" id="contributionRankCard">
+              <p class="admin-update-empty">正在读取贡献值…</p>
+            </section>
+            <section class="contribution-side">
+              <div class="contribution-mini-card" id="contributionNoticeCard">
+                <h3>最近通知</h3>
+                <p class="admin-update-empty">暂无通知。</p>
+              </div>
+              <div class="contribution-mini-card" id="contributionBadgeCard">
+                <h3>获得徽章</h3>
+                <p class="admin-update-empty">徽章会在贡献被采纳后解锁。</p>
+              </div>
+            </section>
+          </div>
+          <section class="contribution-records">
+            <div class="contribution-record-head">
+              <div>
+                <p class="section-kicker">MY CONTRIBUTIONS</p>
+                <h3>贡献记录</h3>
+              </div>
+              <span id="contributionRecordCount">0 条</span>
+            </div>
+            <div class="contribution-record-list" id="contributionRecordList">
+              <p class="admin-update-empty">正在读取贡献记录…</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="panel news-panel" id="newsPanel" hidden>
+          <div class="panel-header news-head">
+            <div>
+              <p class="section-kicker">TOY INTELLIGENCE</p>
+              <h2>玩具情报中心</h2>
+              <p class="news-tagline">自动整理发布的模型资讯索引，重点沉淀万代官方与相关产品动态；敏感风险内容会拦截待审。</p>
+            </div>
+            <div class="news-head-actions">
+              <button class="news-sub-btn" id="newsSubBtn" type="button" aria-label="订阅频道">
+                <i data-lucide="bell"></i><span>订阅频道</span>
+              </button>
+              <button class="news-wish-btn" id="newsWishBtn" type="button" aria-label="想要清单">
+                <i data-lucide="heart"></i><span>想要清单</span><span class="wish-cnt" id="newsWishCount">0</span>
+              </button>
+            </div>
+          </div>
+          <div class="news-toolbar">
+            <label class="search-box news-search">
+              <i data-lucide="search"></i>
+              <input id="newsSearch" type="search" placeholder="搜索资讯标题 / 来源" />
+            </label>
+            <div class="news-scope" id="newsScope" hidden role="tablist" aria-label="订阅范围">
+              <button type="button" class="active" data-news-scope="sub">已订阅</button>
+              <button type="button" data-news-scope="all">全部</button>
+            </div>
+            <div class="news-cats" id="newsCats" role="tablist" aria-label="资讯筛选">
+              <button type="button" class="active" data-news-cat="">全部</button>
+              <button type="button" data-news-cat="bandai">万代</button>
+            </div>
+          </div>
+          <div class="news-sub-banner" id="newsSubBanner" hidden>
+            <span><i data-lucide="bell"></i> 订阅你关心的品牌，资讯页就只看想看的，不再乱。</span>
+            <button type="button" id="newsSubBannerBtn">去订阅</button>
+          </div>
+          <div class="news-list" id="newsList"></div>
+          <p class="news-empty" id="newsEmpty" hidden>暂时还没有发布的资讯。</p>
+          <p class="site-disclaimer">本站为玩家整理的模型资讯索引，非相关品牌官方站点，商品信息以官方页面为准。</p>
+        </section>
+
+        <section class="panel info-review-panel" id="infoReviewPanel" hidden>
+          <div class="panel-header news-head">
+            <div>
+              <p class="section-kicker">ADMIN · TOY INTEL</p>
+              <h2>玩具情报风险待审</h2>
+              <p class="news-tagline">自动采集会直接发布安全资讯；疑似成人向、露点、过度暴露或事实风险内容会留在这里处理。</p>
+            </div>
+            <div class="info-review-actions">
+              <button class="settle-btn info-publish-all" id="infoPublishAll" type="button"><i data-lucide="check-check"></i>一键发布全部 <span id="infoPendingCount">0</span></button>
+              <button class="settle-btn" id="infoReviewRefresh" type="button">刷新</button>
+            </div>
+          </div>
+          <div class="info-source-box">
+            <form id="infoSourceForm" class="info-source-form">
+              <input name="id" type="hidden" />
+              <label>来源名称<input name="name" type="text" placeholder="如 Hobby Watch" required /></label>
+              <label>类型
+                <select name="sourceType">
+                  <option value="official">official</option>
+                  <option value="media">media</option>
+                  <option value="social">social</option>
+                  <option value="community">community</option>
+                  <option value="ecommerce">ecommerce</option>
+                </select>
+              </label>
+              <label>Adapter
+                <select name="adapterKey">
+                  <option value="html-rss">html-rss</option>
+                  <option value="bandai-hobby">bandai-hobby</option>
+                  <option value="premium-bandai">premium-bandai</option>
+                  <option value="hobby-watch">hobby-watch</option>
+                  <option value="weibo">weibo</option>
+                </select>
+              </label>
+              <label class="wide">Feed / 页面 URL<input name="feedUrl" type="url" placeholder="https://..." /></label>
+              <label class="wide">官网 URL<input name="homepageUrl" type="url" placeholder="https://..." /></label>
+              <label>启用
+                <select name="enabled">
+                  <option value="1">启用</option>
+                  <option value="0">停用</option>
+                </select>
+              </label>
+              <button class="settle-btn" type="submit">保存来源</button>
+            </form>
+            <div class="info-source-list" id="infoSourceList"></div>
+          </div>
+          <div class="info-review-list" id="infoReviewList"></div>
+          <p class="news-empty" id="infoReviewEmpty" hidden>没有待审核资讯。</p>
+          <p class="site-disclaimer">本站为玩家整理的模型资讯索引，非相关品牌官方站点，商品信息以官方页面为准。</p>
+        </section>
+
+        <section class="panel catalog-panel" id="catalogPanel" hidden>
+          <div class="panel-header catalog-head">
+            <div>
+              <p class="section-kicker">MODEL CATALOG</p>
+              <h2>模型图鉴</h2>
+            </div>
+            <button class="settle-btn catalog-new" id="catalogNewBtn" type="button" hidden>+ 新增图鉴</button>
+          </div>
+          <div class="catalog-stats" id="catalogStats"></div>
+          <div class="catalog-mode" id="catalogMode" hidden>
+            <button type="button" class="active" data-catalog-status="published">正式图鉴</button>
+          </div>
+          <div class="catalog-toolbar">
+            <label class="search-box catalog-search">
+              <i data-lucide="search"></i>
+              <input id="catalogSearch" type="search" placeholder="搜索：柯西 / 大白鹅 / SS86擎天柱 / 乐高千年隼 / 编号" />
+            </label>
+            <button type="button" class="catalog-filter-toggle" id="catalogFilterToggle" aria-expanded="false">
+              <i data-lucide="sliders-horizontal"></i>
+              <span id="catalogFilterToggleLabel">筛选</span>
+            </button>
+            <div class="catalog-sort" id="catalogSort" role="tablist" aria-label="图鉴排序">
+              <button type="button" data-sort="hot">热门</button>
+              <button type="button" data-sort="owners">拥有</button>
+              <button type="button" data-sort="rating">评分</button>
+              <button type="button" class="active" data-sort="newest">最新</button>
+            </div>
+            <div class="catalog-cats" id="catalogCats"></div>
+          </div>
+          <div class="catalog-facet-row" id="catalogBrandsRow" hidden>
+            <span class="catalog-facet-label">品牌</span>
+            <div class="catalog-facets" id="catalogBrands"></div>
+          </div>
+          <div class="catalog-facet-row" id="catalogIpsRow" hidden>
+            <span class="catalog-facet-label">IP</span>
+            <div class="catalog-facets" id="catalogIps"></div>
+          </div>
+          <div class="catalog-facet-row" id="catalogGradesRow" hidden>
+            <span class="catalog-facet-label">产品线</span>
+            <div class="catalog-facets" id="catalogGrades"></div>
+          </div>
+          <div class="catalog-grid" id="catalogGrid"></div>
+          <p class="catalog-empty" id="catalogEmpty" hidden>图鉴还没有条目。<br />管理员可点「新增图鉴」录入第一条。</p>
+        </section>
+
+        <section class="panel pickup-panel" id="pickupPanel" hidden>
+          <div class="panel-header pickup-head">
+            <div>
+              <p class="section-kicker">PARTS BENCH</p>
+              <h2>取件台</h2>
+              <p class="pickup-tagline">按部位一次性把版件剪齐，照着拼装步骤走，不用再满桌找零件。</p>
+            </div>
+            <div class="pickup-head-actions">
+              <button class="btn-line pickup-upload-open" id="pickupUploadBtn" type="button">上传取件表</button>
+              <button class="settle-btn pickup-new" id="pickupNewBtn" type="button" hidden>+ 录入/校对（官方源）</button>
+            </div>
+          </div>
+          <div class="pickup-stats" id="pickupStats"></div>
+          <div class="pickup-toolbar">
+            <label class="search-box pickup-search">
+              <i data-lucide="search"></i>
+              <input id="pickupSearch" type="search" placeholder="搜索取件表：型号名称 / 厂牌" />
+            </label>
+            <div class="pickup-sort" id="pickupSort" role="tablist" aria-label="取件表排序">
+              <button type="button" class="active" data-sort="hot">热门</button>
+              <button type="button" data-sort="parts">零件多</button>
+              <button type="button" data-sort="newest">最新</button>
+            </div>
+          </div>
+          <div class="pickup-brands" id="pickupBrands"></div>
+          <div class="pickup-grid" id="pickupGrid"></div>
+          <p class="pickup-empty" id="pickupEmpty" hidden>没有匹配的取件表。换个关键词或厂牌试试。</p>
+          <button class="pickup-more" id="pickupMore" type="button" hidden>加载更多</button>
+        </section>
+      </main>
+    </div>
+
+    <!-- 取件台 工作台弹窗 -->
+    <div class="modal-backdrop" id="pickupModal" hidden>
+      <section class="modal pickup-modal" role="dialog" aria-modal="true">
+        <div class="modal-header pickup-modal-head">
+          <div class="pickup-modal-title">
+            <p class="section-kicker">CUTTING BENCH</p>
+            <h2 id="pickupName">取件台</h2>
+            <p class="pickup-modal-meta" id="pickupMeta"></p>
+          </div>
+          <div class="pickup-modal-tools">
+            <button class="btn-line" id="pickupCatalogBtn" type="button" hidden>查看图鉴</button>
+            <button class="btn-line" id="pickupFeedbackToggle" type="button">报错</button>
+            <button class="btn-line" id="pickupEditEntry" type="button" hidden>校对</button>
+            <button class="icon-btn" id="pickupModalClose" aria-label="关闭"><i data-lucide="x"></i></button>
+          </div>
+        </div>
+
+        <div class="pickup-progress-wrap">
+          <div class="pickup-progress-bar"><span id="pickupProgressFill"></span></div>
+          <div class="pickup-progress-row">
+            <span id="pickupProgressText">已剪 0 / 0 颗</span>
+            <button type="button" class="pickup-reset" id="pickupReset">重置进度</button>
+          </div>
+        </div>
+
+        <div class="pickup-viewtoggle" id="pickupViewToggle" role="tablist" aria-label="取件视图">
+          <button type="button" class="active" data-pview="section">按部位拼装</button>
+          <button type="button" data-pview="runner">按版件清点</button>
+        </div>
+
+        <form class="pickup-feedback-box" id="pickupFeedbackForm" hidden>
+          <div>
+            <label>错误位置（可选）<input id="pickupFeedbackHint" name="sectionHint" type="text" placeholder="例如：腰部 04-5 / D5 / H16 数量" /></label>
+            <label>反馈内容<textarea id="pickupFeedbackMessage" name="message" rows="3" placeholder="写下你发现的问题，管理员会在后台看见。"></textarea></label>
+          </div>
+          <div class="pickup-feedback-actions">
+            <span>提交后会同步到管理员账号看板。</span>
+            <button class="settle-btn" type="submit">提交反馈</button>
+          </div>
+        </form>
+
+        <div class="pickup-board" id="pickupBoard"></div>
+
+        <p class="pickup-credit" id="pickupCredit"></p>
+      </section>
+    </div>
+
+    <!-- 用户上传取件表（模板式 Excel，提交后管理员审核） -->
+    <div class="modal-backdrop" id="pickupUploadModal" hidden>
+      <section class="modal pickup-upload-modal" role="dialog" aria-modal="true" aria-labelledby="pickupUploadTitle">
+        <div class="modal-header">
+          <div>
+            <p class="section-kicker">COMMUNITY SUBMISSION</p>
+            <h2 id="pickupUploadTitle">上传取件表</h2>
+          </div>
+          <button class="icon-btn" id="pickupUploadClose" aria-label="关闭"><i data-lucide="x"></i></button>
+        </div>
+        <form class="pickup-upload-form" id="pickupUploadForm">
+          <div class="pickup-upload-steps">
+            <section class="pickup-upload-step">
+              <b>1</b>
+              <div>
+                <strong>下载模板并填写</strong>
+                <p>模板与小程序端一致，有「部位 / 版件 / 件号」三列。件号可用逗号分隔，多件写 8×2 或 8*2。</p>
+                <a class="btn-line pickup-template-link" href="./assets/pickup-template.xlsx" download>下载 Excel 模板</a>
+              </div>
+            </section>
+            <section class="pickup-upload-step">
+              <b>2</b>
+              <div>
+                <strong>填写套件信息</strong>
+                <label>套件名称<input name="name" type="text" maxlength="120" placeholder="例如 MG 1/100 强袭高达" required /></label>
+                <label>规格 / 等级<input name="spec" type="text" maxlength="60" placeholder="例如 MG 1/100，可选" /></label>
+                <label>厂牌<input name="brand" type="text" maxlength="60" placeholder="例如 万代，可选" /></label>
+              </div>
+            </section>
+            <section class="pickup-upload-step">
+              <b>3</b>
+              <div>
+                <strong>选择填好的 .xlsx</strong>
+                <label class="pickup-upload-file">
+                  <input id="pickupUploadFile" name="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+                  <span id="pickupUploadFileName">选择 Excel 文件</span>
+                </label>
+                <p class="pickup-upload-note">提交后会进入管理员审核，通过后才会发布到取件台。</p>
+              </div>
+            </section>
+          </div>
+          <div class="modal-footer pickup-upload-footer">
+            <p id="pickupUploadHint"><i data-lucide="shield-check"></i> 只发布审核通过的取件表。</p>
+            <button class="primary-btn" type="submit"><i data-lucide="upload"></i><span>提交审核</span></button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- 取件表 录入/校对 编辑器（管理员） -->
+    <div class="modal-backdrop" id="pickupEditModal" hidden>
+      <section class="modal pickup-edit-modal" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <div>
+            <p class="section-kicker">VERIFY &amp; PUBLISH</p>
+            <h2 id="pickupEditTitle">录入 / 校对取件表</h2>
+          </div>
+          <button class="icon-btn" id="pickupEditClose" aria-label="关闭"><i data-lucide="x"></i></button>
+        </div>
+        <div class="pickup-edit-body">
+          <div class="pickup-edit-ref" id="pickupEditRef">
+            <p class="pickup-ref-hint">对照原说明书逐步核对件号。点图可放大。</p>
+            <div class="pickup-ref-imgs" id="pickupRefImgs"></div>
+          </div>
+          <div class="pickup-edit-form">
+            <div class="pickup-edit-meta">
+              <label>名称<input id="peName" type="text" placeholder="如 HG 1/144 メッサーM01型（ガウマン机）" /></label>
+              <div class="pe-row2">
+                <label>厂牌<input id="peBrand" type="text" placeholder="万代" /></label>
+                <label>规格<input id="peSpec" type="text" placeholder="HG 1/144" /></label>
+              </div>
+              <label>官方图 URL<input id="peImage" type="text" placeholder="https://bandai-hobby.net/images/2815163.jpg" /></label>
+              <label>来源 URL<input id="peSourceUrl" type="text" placeholder="https://manual.bandai-hobby.net/menus/detail/5119" /></label>
+              <label>署名 / 来源说明<input id="peCompiler" type="text" placeholder="玩物不丧志 · 据万代官方说明书整理" /></label>
+            </div>
+            <div class="pickup-edit-parts" id="pickupEditParts"></div>
+            <button class="btn-line pe-add-section" id="peAddSection" type="button">+ 添加部位</button>
+            <div class="pickup-edit-actions">
+              <span class="pe-stat" id="peStat"></span>
+              <div class="pe-btns">
+                <button class="btn-line danger" id="peDelete" type="button" hidden>删除</button>
+                <button class="settle-btn" id="peSave" type="button">保存为官方源</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 放大查看说明书参考图 -->
+    <div class="modal-backdrop pickup-zoom" id="pickupZoom" hidden>
+      <img id="pickupZoomImg" alt="说明书参考图" />
+    </div>
+
+    <!-- 频道订阅 弹窗 -->
+    <div class="modal-backdrop" id="newsSubModal" hidden>
+      <section class="modal news-sub-modal" role="dialog" aria-modal="true">
+        <header class="news-sub-modal-head">
+          <div>
+            <p class="section-kicker">SUBSCRIBE</p>
+            <h3>订阅频道</h3>
+          </div>
+          <button class="news-modal-close" id="newsSubClose" type="button" aria-label="关闭"><i data-lucide="x"></i></button>
+        </header>
+        <p class="news-sub-hint">勾选你想关注的品牌 / 频道，资讯页就只显示订阅的内容。不选任何频道则显示全部。</p>
+        <label class="news-sub-search">
+          <i data-lucide="search"></i>
+          <input id="newsSubSearch" type="search" placeholder="搜索品牌 / 频道…" autocomplete="off" />
+        </label>
+        <div class="news-sub-list" id="newsSubList"></div>
+        <footer class="news-sub-modal-foot">
+          <button class="ghost-btn" id="newsSubClear" type="button">清空订阅</button>
+          <button class="settle-btn" id="newsSubSave" type="button">保存订阅</button>
+        </footer>
+      </section>
+    </div>
+
+    <!-- 图鉴详情 / 编辑 弹窗 -->
+    <div class="modal-backdrop" id="newsModal" hidden>
+      <section class="modal news-modal" role="dialog" aria-modal="true">
+        <button class="news-modal-close" id="newsModalClose" type="button" aria-label="关闭"><i data-lucide="x"></i></button>
+        <div class="news-modal-hero" id="newsModalImgWrap"><img id="newsModalImg" alt="" referrerpolicy="no-referrer" /></div>
+        <div class="news-modal-content">
+          <div class="news-modal-meta">
+            <span class="news-tag" id="newsModalTag"></span>
+            <span id="newsModalSrc"></span>
+            <time id="newsModalDate"></time>
+          </div>
+          <h2 id="newsModalTitle"></h2>
+          <p class="news-modal-summary" id="newsModalSummary"></p>
+          <div class="news-modal-gallery" id="newsModalGallery"></div>
+          <div class="news-modal-text" id="newsModalText"></div>
+          <div class="news-modal-foot">
+            <button class="news-modal-wish" id="newsModalWish" type="button"><i data-lucide="heart"></i><span>想要</span></button>
+            <a class="news-modal-source" id="newsModalSource" target="_blank" rel="noopener noreferrer">查看官方来源 <i data-lucide="external-link"></i></a>
+          </div>
+          <p class="news-modal-disclaimer">本站为玩家整理的模型资讯索引，非相关品牌官方站点，商品信息以官方页面为准。</p>
+        </div>
+      </section>
+    </div>
+    <div class="modal-backdrop" id="catalogModal" hidden>
+      <section class="modal catalog-modal" role="dialog" aria-modal="true">
+        <button class="icon-btn catalog-floating-close" id="catalogModalClose" aria-label="关闭"><i data-lucide="x"></i></button>
+
+        <!-- 只读详情 -->
+        <div id="catalogView">
+          <div class="cat-detail">
+            <div class="cat-cover-shell">
+              <div class="cat-cover"><img id="catViewCover" alt="" onerror="this.style.display='none'" /></div>
+              <span class="cat-cover-badge" id="catViewStatus">正式图鉴</span>
+            </div>
+            <div class="cat-detail-info">
+              <div class="cat-title-block">
+                <p class="cat-category-line" id="catViewCategory"></p>
+                <h3 id="catViewName"></h3>
+                <p class="cat-model-line" id="catViewMeta"></p>
+                <div class="cat-version-summary" id="catVersionSummary" hidden></div>
+              </div>
+              <div class="cat-info-grid" id="catInfoGrid"></div>
+              <div class="cat-alias-list" id="catAliasList" hidden></div>
+              <div class="cat-manual" id="catManualSection" hidden>
+                <button type="button" class="recognize-btn" id="catManualBtn">
+                  <i data-lucide="book-open"></i>
+                  <span id="catManualBtnLabel">在线查看说明书</span>
+                </button>
+                <small class="cat-manual-hint" id="catManualHint" hidden></small>
+                <div class="cat-manual-pages" id="catManualPages" hidden></div>
+              </div>
+              <div class="cat-pickup-link" id="catPickupSection" hidden>
+                <button type="button" class="recognize-btn cat-pickup-btn" id="catPickupBtn">
+                  <i data-lucide="scissors"></i>
+                  <span id="catPickupBtnLabel">查看取件表</span>
+                </button>
+                <small class="cat-manual-hint" id="catPickupHint"></small>
+              </div>
+              <div class="cat-rating">
+                <div class="stars" id="catStars" data-mode="rate"></div>
+                <span id="catRatingText"></span>
+              </div>
+              <div class="cat-community">
+                <span id="catViewOwners"></span>
+                <span id="catViewPrice"></span>
+              </div>
+              <div class="cat-detail-actions">
+                <button class="primary-btn cat-add-record" id="catAddRecordBtn" type="button">
+                  <i data-lucide="plus"></i><span>加入我的收藏</span>
+                </button>
+                <button class="btn-line cat-contribution-toggle" id="catContributionToggle" type="button">
+                  <i data-lucide="file-pen-line"></i><span>补充图鉴资料</span>
+                </button>
+              </div>
+              <div class="cat-contribution-panel" id="catContributionPanel" hidden>
+                <form class="cat-contribution-box" id="catContributionForm">
+                    <div class="cat-feedback-intro">
+                      <strong>帮这条图鉴改得更准一点</strong>
+                      <p>发现资料有误或缺失？一起来完善这座玩家资料库。管理员确认后会同步到双端。</p>
+                    </div>
+                <input name="fieldKey" id="catContributionField" type="hidden" />
+                <div class="cat-contribution-fieldset" id="catContributionFieldset"></div>
+                <label>
+                  <span id="catContributionOldLabel">当前内容</span>
+                  <input name="oldValue" id="catContributionOldValue" readonly />
+                </label>
+                <label>
+                  <span id="catContributionProposedLabel">建议修改为</span>
+                  <textarea name="proposedValue" rows="2" maxlength="4000" placeholder="填写你认为正确的内容 (如: MB 初号机、大青椒...)"></textarea>
+                </label>
+                <label>
+                  <span>补充说明 <b>可选</b></span>
+                  <textarea name="userNote" rows="2" maxlength="2000" placeholder="想简单说两句也可以，比如你是在哪看到的。"></textarea>
+                </label>
+                <div class="cat-feedback-actions">
+                  <small>每一个纠错，都在帮助更多玩家避坑。</small>
+                  <button class="settle-btn" id="catContributionSubmitBtn" type="submit">
+                    <span class="btn-text">提交补充资料</span>
+                  </button>
+                </div>
+              </form>
+                <div class="cat-contribution-receipt" id="catContributionReceipt" hidden>
+                  <div class="receipt-mark"><i data-lucide="check"></i></div>
+                  <div>
+                    <strong>已收到，等管理员确认</strong>
+                    <p>采纳后会同步更新网页端和小程序端，留下版本记录，并结算贡献值。</p>
+                    <span id="catContributionRank" hidden></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <section class="cat-desc-section">
+            <p class="section-kicker">CATALOG NOTE</p>
+            <p class="cat-desc" id="catViewDesc"></p>
+            <div class="cat-source-links" id="catSourceLinks" hidden></div>
+          </section>
+          <section class="cat-contributors-section" id="catContributorsSection" hidden>
+            <div class="cat-contributors-head">
+              <div>
+                <p class="section-kicker">COMMUNITY CREDIT</p>
+                <h3>本条目贡献者</h3>
+              </div>
+              <span id="catContributorsHint"></span>
+            </div>
+            <div class="cat-contributors-list" id="catContributorsList"></div>
+          </section>
+          <section class="cat-official-gallery" id="catOfficialGallery" hidden>
+            <div class="cat-gallery-head">
+              <div>
+                <p class="section-kicker">OFFICIAL IMAGES</p>
+                <h3>产品官图</h3>
+              </div>
+              <span id="catOfficialGalleryHint"></span>
+            </div>
+            <div class="cat-gallery-stage" id="catOfficialGalleryStage">
+              <button type="button" class="cat-gallery-nav prev" id="catOfficialPrev" aria-label="上一张"><i data-lucide="chevron-left"></i></button>
+              <button type="button" class="cat-gallery-photo" id="catOfficialMainPhoto" aria-label="查看当前官图">
+                <img id="catOfficialMainImg" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+              </button>
+              <button type="button" class="cat-gallery-nav next" id="catOfficialNext" aria-label="下一张"><i data-lucide="chevron-right"></i></button>
+            </div>
+            <div class="cat-gallery-caption" id="catOfficialCaption"></div>
+            <div class="cat-gallery-rail" id="catOfficialGalleryRail"></div>
+          </section>
+          <section class="cat-related-section" id="catRelatedSection" hidden>
+            <div class="cat-related-head">
+              <div>
+                <p class="section-kicker">RELATED CATALOG</p>
+                <h3>继续探索</h3>
+              </div>
+              <span id="catRelatedHint">同作品 / 同产品线</span>
+            </div>
+            <div class="cat-related-groups" id="catRelatedGroups"></div>
+          </section>
+          <section class="cat-admin-actions" id="catAdminActions" hidden>
+            <div>
+              <p class="section-kicker">REVIEW CONTROL</p>
+              <span id="catReviewHint">确认资料无误后录入正式图鉴。</span>
+            </div>
+            <div class="cat-admin-buttons">
+              <button class="btn-line approve" id="catApproveBtn" type="button">通过入库</button>
+              <button class="btn-line" id="catEditBtn" type="button">编辑资料</button>
+              <button class="btn-line danger" id="catDeleteBtn" type="button">删除候选</button>
+            </div>
+          </section>
+        </div>
+
+        <!-- 编辑表单（管理员）-->
+        <form id="catalogForm" hidden>
+          <div class="form-grid">
+            <label class="wide"><span>名称</span><input name="name" required placeholder="例如：MGEX 强袭自由高达" /></label>
+            <div class="wide catalog-ai-tools">
+              <button type="button" class="recognize-btn" id="catNormalizeBtn"><i data-lucide="wand-sparkles"></i><span>高达标准化</span></button>
+              <small class="recognize-hint" id="catNormalizeHint" hidden></small>
+            </div>
+            <label><span>编号 / 型号</span><input name="modelNumber" placeholder="75313 / RX-93 / MBF-P02…" /></label>
+            <label><span>厂牌</span><input name="brand" placeholder="BANDAI / Hot Toys…" /></label>
+            <label><span>系列</span><input name="series" placeholder="MGEX / DLX…" /></label>
+            <label><span>比例</span><input name="scale" placeholder="1/100 / 1/6…" /></label>
+            <label><span>作品</span><input name="work" placeholder="高达 / 戴亚克隆 / 漫威…" /></label>
+            <label><span>分类</span>
+              <select name="category">
+                <option value="万代拼装">拼装模型</option>
+                <option value="万代成品">成品玩具</option>
+                <option value="兵人">兵人 / 人偶</option>
+                <option value="变形金刚">变形金刚</option>
+                <option value="乐高">乐高</option>
+              </select>
+            </label>
+            <label><span>角色 / IP</span><input name="character" placeholder="强袭自由 / 蝙蝠侠…" /></label>
+            <label><span>参考价（日元源填日元）</span><input name="price" type="number" min="0" step="1" placeholder="日本官方源填日元，国内源填人民币" /></label>
+            <label class="wide"><span>封面图地址</span>
+              <div class="image-url-row">
+                <input name="coverImage" type="text" placeholder="https://… 或留空用识图找封面" />
+                <button type="button" class="recognize-btn" id="catRecognizeBtn"><i data-lucide="sparkles"></i><span>识图找封面</span></button>
+              </div>
+              <small class="recognize-hint" id="catRecognizeHint" hidden></small>
+              <div class="recognize-options" id="catRecognizeOptions" hidden></div>
+            </label>
+            <label class="wide"><span>说明</span><textarea name="description" rows="3" placeholder="模型介绍、看点、注意事项…"></textarea></label>
+          </div>
+          <div class="modal-footer">
+            <p id="catFormNote"><i data-lucide="book-open"></i> 提交后将进入图鉴库流程。</p>
+            <button class="primary-btn" type="submit"><i data-lucide="save"></i><span id="catSaveLabel">保存图鉴</span></button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-header">
+          <div>
+            <p class="section-kicker" id="modalKicker">NEW ARCHIVE ENTRY</p>
+            <h2 id="modalTitle">记录一笔收藏</h2>
+          </div>
+          <button class="icon-btn" id="closeModal" aria-label="关闭">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <form id="recordForm">
+          <div class="form-grid">
+            <label class="wide catalog-link-field">
+              <span>从图鉴选择 <small>选中自动带出名称 / 厂牌 / 图片</small></span>
+              <input id="catalogPickInput" type="text" autocomplete="off" placeholder="搜图鉴：输入名称关键词，没有就直接往下手填" />
+              <div class="catalog-pick-results" id="catalogPickResults" hidden></div>
+              <div class="catalog-linked" id="catalogLinked" hidden>
+                <i data-lucide="link"></i> 已关联图鉴：<b id="catalogLinkedName"></b>
+                <span class="catalog-unlink" id="catalogUnlink">取消关联</span>
+              </div>
+            </label>
+            <label class="wide">
+              <span>藏品名称</span>
+              <input name="name" required placeholder="例如：MGEX 强袭自由高达" />
+            </label>
+            <label>
+              <span>收藏分类</span>
+              <select name="category" required>
+                <option>高达模型</option>
+                <option>机娘</option>
+                <option>兵人/人偶</option>
+                <option>雕像</option>
+                <option>变形金刚</option>
+                <option>其他</option>
+              </select>
+            </label>
+            <label>
+              <span>厂牌 / 系列</span>
+              <input name="series" required placeholder="例如：BANDAI / MGEX" />
+            </label>
+            <label>
+              <span>记录类型</span>
+              <select name="status" id="statusField" required>
+                <option value="已入库">已入库</option>
+                <option value="预定中">预定中</option>
+              </select>
+            </label>
+            <label>
+              <span>数量</span>
+              <input name="quantity" type="number" min="1" step="1" value="1" required />
+            </label>
+            <label>
+              <span>总价（人民币）</span>
+              <input name="price" type="number" min="0" step="1" required placeholder="0" />
+            </label>
+            <label class="paid-field">
+              <span>已支付</span>
+              <input name="paid" type="number" min="0" step="1" required placeholder="0" />
+            </label>
+            <label>
+              <span>购买 / 预定日期</span>
+              <input name="date" type="date" required />
+            </label>
+            <label class="due-field">
+              <span>预计补款日期</span>
+              <input name="dueDate" type="date" />
+            </label>
+            <label class="wide">
+              <span>产品图片 <small>可选：上传本机图片 / 联网识图 / 或粘贴地址</small></span>
+              <div class="image-url-row">
+                <input name="imageUrl" type="text" placeholder="留空自动识别，或上传 / 粘贴地址" />
+                <button type="button" class="recognize-btn" id="uploadImageBtn" title="从本机上传一张图片">
+                  <i data-lucide="upload"></i>
+                  <span>上传</span>
+                </button>
+                <button type="button" class="recognize-btn" id="recognizeImageBtn" title="根据当前名称联网识别产品图">
+                  <i data-lucide="sparkles"></i>
+                  <span id="recognizeImageLabel">识图</span>
+                </button>
+              </div>
+              <input type="file" id="imageFileInput" accept="image/*" hidden />
+              <div class="image-current" id="imageCurrent" hidden>
+                <img id="imageCurrentImg" alt="当前产品图" onerror="hideImageThumb()" />
+                <button type="button" class="image-clear" id="imageClearBtn" title="移除图片">移除</button>
+              </div>
+              <small class="recognize-hint" id="recognizeHint" hidden></small>
+              <div class="recognize-options" id="recognizeOptions" hidden></div>
+            </label>
+          </div>
+          <div class="modal-footer">
+            <p><i data-lucide="database"></i> 保存后将更新看板，并在后台排队识别产品图。</p>
+            <button class="primary-btn" id="submitRecordButton" type="submit">
+              <i data-lucide="save"></i>
+              <span id="submitRecordLabel">写入资料库</span>
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <!-- 识图候选 / 产品图 / 资讯图 大图预览 -->
+    <div class="img-preview-overlay" id="imgPreview" hidden>
+      <button class="img-preview-nav prev" id="imgPreviewPrev" type="button" aria-label="上一张">
+        <i data-lucide="chevron-left"></i>
+      </button>
+      <div class="img-preview-box">
+        <img id="imgPreviewImg" alt="图片预览" />
+        <div class="img-preview-bar">
+          <p class="img-preview-hint" id="imgPreviewHint">双击候选图即可选用 · 点空白处关闭</p>
+          <span class="img-preview-count" id="imgPreviewCount"></span>
+        </div>
+      </div>
+      <button class="img-preview-nav next" id="imgPreviewNext" type="button" aria-label="下一张">
+        <i data-lucide="chevron-right"></i>
+      </button>
+    </div>
+
+    <div class="modal-backdrop" id="accountSecurityModal" hidden>
+      <section class="modal account-security-modal" role="dialog" aria-modal="true" aria-labelledby="accountSecurityModalTitle">
+        <div class="modal-header">
+          <div>
+            <p class="section-kicker">ACCOUNT LINK</p>
+            <h2 id="accountSecurityModalTitle">邮箱找回</h2>
+          </div>
+          <button class="icon-btn" id="accountSecurityClose" type="button" aria-label="关闭"><i data-lucide="x"></i></button>
+        </div>
+        <div class="account-link-body">
+          <section class="account-link-card">
+            <div class="account-link-card-head">
+              <i data-lucide="mail"></i>
+              <div>
+                <h3>邮箱找回</h3>
+                <p id="emailBindStatus">未绑定</p>
+              </div>
+            </div>
+            <form class="account-bind-form" id="bindEmailForm">
+              <label>
+                <span>邮箱</span>
+                <input name="email" type="email" autocomplete="email" placeholder="请输入邮箱地址" />
+              </label>
+              <label>
+                <span>验证码</span>
+                <div class="account-code-row">
+                  <input name="code" inputmode="numeric" maxlength="6" placeholder="6 位验证码" />
+                  <button class="btn-line" id="sendBindEmailCode" type="button">发送验证码</button>
+                </div>
+              </label>
+              <button class="settle-btn" type="submit">绑定邮箱</button>
+              <small>绑定后，忘记密码时可通过邮箱验证码重置。</small>
+            </form>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="badge-tooltip-global" id="contributionBadgeTooltip" hidden></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <textarea id="backupPayload" hidden aria-hidden="true"></textarea>
+
+    <script src="./assets/lucide.min.js"></script>
+    <script src="./app.js?v=128"></script>
+  </body>
+</html>
