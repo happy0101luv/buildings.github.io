@@ -366,7 +366,8 @@ function addView() {
       <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="uploadNote">原图不超过 1MB，上传时自动压缩为 WebP。</p>
     </section>
     ${existing ? `<button class="delete-record" id="deleteRecord" type="button">删除这条收藏</button>` : ""}
-  </form><div class="form-footer"><button type="submit" form="collectionForm">${existing ? "保存修改" : "保存收藏"}</button></div>`;
+    <div class="form-footer"><button type="submit">${existing ? "保存修改" : "保存收藏"}</button></div>
+  </form>`;
 }
 
 function render() {
