@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f3ef" />
+  <meta name="description" content="玩物不丧志收藏资料库的小程序尺寸网页版本" />
+  <title>玩物不丧志 · 小程序版</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="phone-shell" id="phoneShell">
+    <header class="mini-header" id="miniHeader">
+      <button class="header-back" id="headerBack" type="button" aria-label="返回" hidden>
+        <i data-lucide="chevron-left"></i>
+      </button>
+      <h1 id="pageTitle">总览</h1>
+      <div class="wx-capsule" aria-label="小程序菜单">
+        <span class="capsule-dots"><b></b><b></b><b></b></span>
+        <span class="capsule-divider"></span>
+        <span class="capsule-minus"></span>
+        <span class="capsule-divider"></span>
+        <span class="capsule-ring"></span>
+      </div>
+    </header>
+
+    <main class="page-scroll" id="pageContent" tabindex="-1"></main>
+
+    <button class="floating-add" id="floatingAdd" type="button" aria-label="新增收藏">
+      <i data-lucide="plus"></i>
+    </button>
+
+    <nav class="tabbar" id="tabbar" aria-label="主导航">
+      <button type="button" data-route="dashboard"><i data-lucide="layout-grid"></i><span>总览</span></button>
+      <button type="button" data-route="collection"><i data-lucide="notebook-tabs"></i><span>收藏</span></button>
+      <button type="button" data-route="catalog"><i data-lucide="scan-search"></i><span>图鉴</span></button>
+      <button type="button" data-route="discover"><i data-lucide="newspaper"></i><span>发现</span></button>
+      <button type="button" data-route="profile"><i data-lucide="user-round"></i><span>我的</span></button>
+    </nav>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="../assets/lucide.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
