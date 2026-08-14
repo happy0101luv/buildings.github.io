@@ -115,7 +115,7 @@ img { display: block; max-width: 100%; }
   height: calc(72px + env(safe-area-inset-bottom, 0px));
   padding: 7px 6px env(safe-area-inset-bottom, 0px);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: rgba(253, 252, 249, .98);
   border-top: 1px solid #ebe8e2;
 }
@@ -128,10 +128,10 @@ img { display: block; max-width: 100%; }
   align-items: center;
   justify-content: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
 }
-.tabbar svg { width: 24px; height: 24px; stroke-width: 1.8; }
+.tabbar svg { width: 23px; height: 23px; stroke-width: 1.8; }
 .tabbar button.active { color: var(--red); }
 
 .floating-add {
@@ -298,6 +298,8 @@ img { display: block; max-width: 100%; }
 .segment { display: grid; grid-template-columns: repeat(4, 1fr); margin: 8px 0 12px; padding: 3px; border: 1px solid #d5d1cb; border-radius: 7px; background: #edeae4; }
 .segment button { height: 35px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 800; }
 .segment button.active { background: #151210; color: #fff; }
+.life-segment { grid-template-columns: repeat(6, 1fr); }
+.life-segment button { padding: 0 2px; font-size: 12px; }
 .filter-row { display: flex; align-items: center; gap: 7px; margin: 9px 0 12px; overflow-x: auto; scrollbar-width: none; }
 .filter-row::-webkit-scrollbar { display: none; }
 .filter-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 800; }
@@ -312,6 +314,23 @@ img { display: block; max-width: 100%; }
 .record-list.grid .record-image { width: 100%; height: 135px; margin-bottom: 8px; }
 .record-list.grid .record-side { margin-top: 8px; flex-direction: row; align-items: center; }
 .empty-state { min-height: 180px; display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 13px; }
+.empty-state small { display: inline-block; margin-top: 7px; color: var(--soft); font-size: 10px; }
+
+.life-intro h2 { font-size: 25px; }
+.life-investment .investment-split div:last-child strong { color: #ff4d51; }
+.expense-list { display: grid; gap: 8px; }
+.expense-card { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; min-height: 76px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; cursor: pointer; }
+.expense-icon { width: 52px; height: 52px; border-radius: 9px; background: #f0ede7; color: #706a61; display: grid; place-items: center; overflow: hidden; }
+.expense-icon.collection { background: var(--red-soft); color: var(--red); }
+.expense-icon svg { width: 23px; height: 23px; }
+.expense-icon img { width: 100%; height: 100%; object-fit: cover; }
+.expense-main { min-width: 0; }
+.expense-main h3 { margin: 1px 0 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
+.expense-main p { margin: 0 0 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); font-size: 10px; }
+.expense-main time { color: var(--soft); font-size: 9px; }
+.expense-amount { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; padding: 2px 0; }
+.expense-amount strong { color: var(--red); font-size: 14px; white-space: nowrap; }
+.expense-amount span { padding: 3px 6px; border-radius: 9px; background: #f0ede7; color: var(--muted); font-size: 8px; white-space: nowrap; }
 
 .catalog-hero { padding: 6px 0 14px; }
 .catalog-hero h2 { margin: 7px 0 5px; font-size: 27px; }
@@ -404,6 +423,7 @@ img { display: block; max-width: 100%; }
 .quick-categories { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 7px; }
 .quick-categories button { height: 35px; border: 0; border-radius: 5px; background: #f1efeb; font-size: 12px; font-weight: 750; }
 .quick-categories button.active { background: #171411; color: #fff; }
+.life-category-picks { grid-template-columns: repeat(5, 1fr); }
 .status-segment { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border: 1px solid #d3cfc8; border-radius: 7px; background: #ebe8e2; }
 .status-segment button { height: 40px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 850; }
 .status-segment button.active { background: #151210; color: #fff; }

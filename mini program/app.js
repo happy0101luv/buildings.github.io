@@ -2,19 +2,23 @@ const STORAGE_KEY = "hangar07-collection-v1";
 const SCOPED_STORAGE_KEY = `${STORAGE_KEY}:本地镜像`;
 const BACKUP_KEY = "hangar07-backups-v1:本地镜像";
 const PENDING_SYNC_KEY = "hangar07-pending-sync-v1:本地镜像";
+const LIFE_STORAGE_KEY = "wanwu-life-expenses-v1";
 const MAX_IMAGE_UPLOAD_BYTES = 1024 * 1024;
 const COMPRESSED_IMAGE_MAX_BYTES = 180 * 1024;
 const COMPRESSED_IMAGE_MAX_SIDE = 1280;
-const ROUTES = ["dashboard", "collection", "catalog", "discover", "profile", "add"];
+const ROUTES = ["life", "dashboard", "collection", "catalog", "discover", "profile", "add", "life-add"];
 const TITLES = {
+  life: "生活记账",
   dashboard: "总览",
   collection: "收藏库",
   catalog: "模型图鉴",
   discover: "发现",
   profile: "我的",
   add: "新增收藏",
+  "life-add": "新增支出",
 };
 const CATEGORIES = ["全部分类", "高达模型", "机娘", "兵人/人偶", "变形金刚", "其他"];
+const LIFE_CATEGORIES = ["全部", "衣", "食", "住", "行", "收藏"];
 
 const shell = document.querySelector("#phoneShell");
 const content = document.querySelector("#pageContent");
@@ -29,6 +33,9 @@ const toast = document.querySelector("#toast");
 const state = {
   route: "dashboard",
   records: [],
+  lifeRecords: [],
+  lifeCategory: "全部",
+  lifeSearch: "",
   selectedYear: new Date().getFullYear(),
   collectionSearch: "",
   collectionStatus: "全部",
@@ -39,9 +46,11 @@ const state = {
   news: [],
   newsSearch: "",
   editingId: "",
+  editingExpenseId: "",
   addReturnRoute: "collection",
   prefill: null,
   uploadImage: "",
+  lifeUploadImage: "",
   profile: { username: "本地镜像", authenticated: true },
 };
 
@@ -54,6 +63,21 @@ function loadRecords() {
   const plain = safeParse(localStorage.getItem(STORAGE_KEY), null);
   if (Array.isArray(scoped) && (scoped.length || !Array.isArray(plain))) return scoped;
   return Array.isArray(plain) ? plain : Array.isArray(scoped) ? scoped : [];
+}
+
+function loadLifeRecords() {
+  const value = safeParse(localStorage.getItem(LIFE_STORAGE_KEY), []);
+  return Array.isArray(value) ? value : [];
+}
+
+function saveLifeRecords() {
+  try {
+    localStorage.setItem(LIFE_STORAGE_KEY, JSON.stringify(state.lifeRecords));
+    return true;
+  } catch {
+    showToast("本机存储空间不足，请删除部分图片后重试");
+    return false;
+  }
 }
 
 function saveRecords(reason = "资料更新") {
@@ -148,6 +172,11 @@ function navigate(route, options = {}) {
     state.prefill = options.prefill || null;
     state.uploadImage = options.imageUrl || "";
   }
+  if (route === "life-add") {
+    state.addReturnRoute = state.route === "life-add" ? state.addReturnRoute : state.route;
+    state.editingExpenseId = options.editingExpenseId || "";
+    state.lifeUploadImage = options.imageUrl || "";
+  }
   const nextHash = `#/${route}`;
   if (location.hash === nextHash) render();
   else location.hash = nextHash;
@@ -171,6 +200,62 @@ function recordCard(record) {
         <strong>¥${formatMoney(price)}</strong>
       </div>
     </article>`;
+}
+
+function allLifeExpenses() {
+  const manual = state.lifeRecords.map((item) => ({ ...item, sourceType: "life" }));
+  const collections = state.records
+    .filter((record) => paidAmount(record) > 0)
+    .map((record) => ({
+      id: `collection-${record.id}`,
+      sourceId: record.id,
+      sourceType: "collection",
+      name: record.name || "收藏支出",
+      category: "收藏",
+      amount: paidAmount(record),
+      date: record.date || record.createdAt || todayValue(),
+      note: [record.category, record.series].filter(Boolean).join(" · "),
+      imageUrl: record.imageUrl || record.catalogCoverImage || "",
+    }));
+  return [...manual, ...collections].sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+}
+
+function expenseCard(expense) {
+  const image = normalizeAssetUrl(expense.imageUrl || "");
+  const icon = { "衣": "shirt", "食": "utensils", "住": "house", "行": "car-front", "收藏": "package" }[expense.category] || "receipt-text";
+  return `<article class="expense-card" data-expense-id="${escapeHtml(expense.id)}" data-expense-source="${escapeHtml(expense.sourceType || "life")}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(expense.name)}">
+    <div class="expense-icon ${expense.category === "收藏" ? "collection" : ""}">${image ? `<img src="${escapeHtml(image)}" alt="" />` : `<i data-lucide="${icon}"></i>`}</div>
+    <div class="expense-main"><h3>${escapeHtml(expense.name || "生活支出")}</h3><p>${escapeHtml(expense.category || "其他")} · ${escapeHtml(expense.note || (expense.sourceType === "collection" ? "由收藏记录自动同步" : "生活记账"))}</p><time>${escapeHtml(formatDate(expense.date))}</time></div>
+    <div class="expense-amount"><strong>-¥${formatMoney(expense.amount)}</strong>${expense.sourceType === "collection" ? `<span>收藏同步</span>` : `<span>${escapeHtml(expense.category)}</span>`}</div>
+  </article>`;
+}
+
+function lifeView() {
+  const expenses = allLifeExpenses();
+  const search = state.lifeSearch.trim().toLowerCase();
+  const filtered = expenses.filter((item) => {
+    const matchesCategory = state.lifeCategory === "全部" || item.category === state.lifeCategory;
+    const matchesSearch = !search || `${item.name || ""} ${item.note || ""} ${item.category || ""}`.toLowerCase().includes(search);
+    return matchesCategory && matchesSearch;
+  });
+  const total = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const monthKey = todayValue().slice(0, 7);
+  const monthTotal = expenses.filter((item) => String(item.date || "").startsWith(monthKey)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const collectionItems = expenses.filter((item) => item.category === "收藏");
+  const collectionTotal = collectionItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  return `<section class="page">
+    <div class="archive-intro life-intro"><p class="eyebrow">DAILY LEDGER</p><h2>生活记账 <small>${expenses.length} 笔</small></h2></div>
+    <div class="investment-card life-investment">
+      <p class="eyebrow">LIFE EXPENDITURE</p><span class="investment-pill">全部生活支出</span>
+      <div class="big-money"><b>¥</b>${formatMoney(total)}</div>
+      <p>${expenses.length} 笔支出&nbsp; · &nbsp;收藏同步 ${collectionItems.length} 笔</p>
+      <div class="investment-split"><div>本月支出<strong>¥${formatMoney(monthTotal)}</strong></div><div>收藏支出<strong>¥${formatMoney(collectionTotal)}</strong></div></div>
+    </div>
+    <label class="search-box"><i data-lucide="search"></i><input id="lifeSearch" value="${escapeHtml(state.lifeSearch)}" placeholder="搜索支出名称 / 分类 / 备注" /></label>
+    <div class="segment life-segment" id="lifeSegment">${LIFE_CATEGORIES.map((category) => `<button type="button" data-life-category="${category}" class="${state.lifeCategory === category ? "active" : ""}">${category}</button>`).join("")}</div>
+    <div class="list-meta"><span>当前显示 ${filtered.length} 笔</span><span>${state.lifeCategory === "全部" ? "全部生活支出" : `${state.lifeCategory}类支出`}</span></div>
+    ${filtered.length ? `<div class="expense-list">${filtered.map(expenseCard).join("")}</div>` : `<div class="empty-state"><p>还没有${state.lifeCategory === "全部" ? "生活支出" : `${state.lifeCategory}类支出`}<br /><small>点击右下角＋记录第一笔</small></p></div>`}
+  </section>`;
 }
 
 function brandRow() {
@@ -371,17 +456,44 @@ function addView() {
   </form>`;
 }
 
+function lifeAddView() {
+  const existing = state.lifeRecords.find((record) => String(record.id) === String(state.editingExpenseId));
+  const source = existing || {};
+  if (!state.lifeUploadImage) state.lifeUploadImage = source.imageUrl || "";
+  const category = source.category || "食";
+  const image = normalizeAssetUrl(state.lifeUploadImage);
+  return `<form class="page form-page" id="lifeExpenseForm">
+    <section class="form-section">
+      <p class="eyebrow">LIFE EXPENSE</p><h2 class="form-title">生活支出</h2>
+      <label class="field"><span>支出名称<b>*</b></span><input name="name" required maxlength="80" value="${escapeHtml(source.name || "")}" placeholder="例如：午餐、房租、地铁" /></label>
+      <label class="field"><span>支出分类</span><input type="hidden" name="category" value="${escapeHtml(category)}" /></label>
+      <div class="quick-categories life-category-picks">${LIFE_CATEGORIES.slice(1).map((item) => `<button type="button" data-life-pick="${item}" class="${item === category ? "active" : ""}">${item}</button>`).join("")}</div>
+      <div class="form-two"><label class="field"><span>金额（人民币）<b>*</b></span><input name="amount" type="number" min="0.01" step="0.01" required value="${Number(source.amount || 0) || ""}" placeholder="0" /></label><label class="field"><span>支出日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label></div>
+    </section>
+    <section class="form-section"><p class="eyebrow">EXPENSE NOTE</p><h2 class="form-title">支出备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="用途、付款方式、同行人…">${escapeHtml(source.note || "")}</textarea></label></section>
+    <section class="form-section"><p class="eyebrow">RECEIPT IMAGE</p><h2 class="form-title">支出图片 <small>可选</small></h2>
+      <div class="image-uploader"><div class="image-preview" id="lifeImagePreview">${image ? `<img src="${escapeHtml(image)}" alt="支出图片预览" />` : `<b>＋</b><span>支出图</span>`}</div><div class="image-actions"><button id="chooseLifeImage" type="button">上传图片</button><button id="clearLifeImage" class="alt" type="button">移除图片</button></div></div>
+      <input id="lifeImageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="lifeUploadNote">原图不超过 1MB，上传时自动压缩为 WebP。</p>
+    </section>
+    ${existing ? `<button class="delete-record" id="deleteExpense" type="button">删除这笔支出</button>` : ""}
+  </form>`;
+}
+
 function render() {
   state.route = currentRoute();
   pageTitle.textContent = TITLES[state.route];
-  const formMode = state.route === "add";
+  const formMode = state.route === "add" || state.route === "life-add";
   shell.classList.toggle("form-mode", formMode);
   headerBack.hidden = !formMode;
   formSaveBar.hidden = !formMode;
-  if (formMode) formSaveButton.textContent = state.editingId ? "保存修改" : "保存收藏";
-  floatingAdd.hidden = !["dashboard", "collection"].includes(state.route);
+  if (formMode) {
+    const lifeMode = state.route === "life-add";
+    formSaveButton.textContent = lifeMode ? (state.editingExpenseId ? "保存修改" : "保存支出") : (state.editingId ? "保存修改" : "保存收藏");
+    formSaveButton.setAttribute("form", lifeMode ? "lifeExpenseForm" : "collectionForm");
+  }
+  floatingAdd.hidden = !["life", "dashboard", "collection"].includes(state.route);
   tabbar.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.route === state.route));
-  const views = { dashboard: dashboardView, collection: collectionView, catalog: catalogView, discover: discoverView, profile: profileView, add: addView };
+  const views = { life: lifeView, dashboard: dashboardView, collection: collectionView, catalog: catalogView, discover: discoverView, profile: profileView, add: addView, "life-add": lifeAddView };
   content.innerHTML = views[state.route]();
   content.scrollTop = 0;
   bindViewEvents();
@@ -416,6 +528,30 @@ function bindCollectionEvents() {
   content.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => { state.collectionCategory = button.dataset.category; render(); }));
   content.querySelectorAll("[data-list-view]").forEach((button) => button.addEventListener("click", () => { state.collectionView = button.dataset.listView; render(); }));
   content.querySelector("#manageCategories")?.addEventListener("click", () => showToast("分类会根据收藏记录自动整理"));
+}
+
+function bindLifeEvents() {
+  const search = content.querySelector("#lifeSearch");
+  search?.addEventListener("input", (event) => {
+    state.lifeSearch = event.target.value;
+    clearTimeout(bindLifeEvents.searchTimer);
+    bindLifeEvents.searchTimer = setTimeout(render, 160);
+  });
+  content.querySelectorAll("[data-life-category]").forEach((button) => button.addEventListener("click", () => {
+    state.lifeCategory = button.dataset.lifeCategory;
+    render();
+  }));
+  content.querySelectorAll("[data-expense-id]").forEach((card) => {
+    const open = () => {
+      if (card.dataset.expenseSource === "collection") {
+        navigate("add", { editingId: card.dataset.expenseId.replace(/^collection-/, "") });
+      } else {
+        navigate("life-add", { editingExpenseId: card.dataset.expenseId });
+      }
+    };
+    card.addEventListener("click", open);
+    card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") open(); });
+  });
 }
 
 function bindCatalogEvents() {
@@ -502,6 +638,14 @@ function updateFormImage(url, message = "") {
   const preview = content.querySelector("#imagePreview");
   if (preview) preview.innerHTML = url ? `<img src="${escapeHtml(normalizeAssetUrl(url))}" alt="产品图预览" />` : `<b>＋</b><span>产品图</span>`;
   const note = content.querySelector("#uploadNote");
+  if (note && message) note.textContent = message;
+}
+
+function updateLifeFormImage(url, message = "") {
+  state.lifeUploadImage = url;
+  const preview = content.querySelector("#lifeImagePreview");
+  if (preview) preview.innerHTML = url ? `<img src="${escapeHtml(normalizeAssetUrl(url))}" alt="支出图片预览" />` : `<b>＋</b><span>支出图</span>`;
+  const note = content.querySelector("#lifeUploadNote");
   if (note && message) note.textContent = message;
 }
 
@@ -599,7 +743,7 @@ function bindAddEvents() {
     state.prefill = null;
     state.uploadImage = "";
     showToast(existing ? "收藏已更新" : "收藏已保存");
-    navigate("collection");
+    navigate(state.addReturnRoute === "life" ? "life" : "collection");
   });
   content.querySelector("#deleteRecord")?.addEventListener("click", () => {
     const existing = state.records.find((record) => String(record.id) === String(state.editingId));
@@ -609,16 +753,82 @@ function bindAddEvents() {
     state.editingId = "";
     state.uploadImage = "";
     showToast("收藏已删除");
-    navigate("collection");
+    navigate(state.addReturnRoute === "life" ? "life" : "collection");
+  });
+}
+
+function bindLifeAddEvents() {
+  const form = content.querySelector("#lifeExpenseForm");
+  if (!form) return;
+  content.querySelectorAll("[data-life-pick]").forEach((button) => button.addEventListener("click", () => {
+    form.elements.category.value = button.dataset.lifePick;
+    content.querySelectorAll("[data-life-pick]").forEach((item) => item.classList.toggle("active", item === button));
+  }));
+  content.querySelector("#chooseLifeImage")?.addEventListener("click", () => content.querySelector("#lifeImageFile")?.click());
+  content.querySelector("#clearLifeImage")?.addEventListener("click", () => {
+    updateLifeFormImage("", "图片已移除。原图限制 1MB，上传时自动压缩。");
+  });
+  content.querySelector("#lifeImageFile")?.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return showToast("请选择 JPG、PNG 或 WebP 图片");
+    if (file.size > MAX_IMAGE_UPLOAD_BYTES) return showToast(`原图不能超过 1MB（当前 ${formatFileSize(file.size)}）`);
+    const note = content.querySelector("#lifeUploadNote");
+    if (note) note.textContent = "正在压缩图片…";
+    try {
+      const dataUrl = await compressImage(file);
+      updateLifeFormImage(dataUrl, `已从 ${formatFileSize(file.size)} 压缩至 ${formatFileSize(dataUrlByteSize(dataUrl))}，保存后写入当前设备。`);
+      showToast("图片压缩完成");
+    } catch (error) { showToast(error.message || "图片处理失败"); }
+  });
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const name = String(data.get("name") || "").trim();
+    const amount = Number(data.get("amount") || 0);
+    if (!name) return showToast("请填写支出名称");
+    if (!Number.isFinite(amount) || amount <= 0) return showToast("请填写正确的支出金额");
+    const existing = state.lifeRecords.find((record) => String(record.id) === String(state.editingExpenseId));
+    const next = {
+      ...(existing || {}),
+      id: existing?.id || (crypto.randomUUID?.() || `expense-${Date.now()}`),
+      name,
+      category: String(data.get("category") || "食"),
+      amount,
+      date: String(data.get("date") || todayValue()),
+      note: String(data.get("note") || "").trim(),
+      imageUrl: state.lifeUploadImage || "",
+      updatedAt: new Date().toISOString(),
+    };
+    if (existing) state.lifeRecords = state.lifeRecords.map((record) => String(record.id) === String(existing.id) ? next : record);
+    else state.lifeRecords.unshift(next);
+    if (!saveLifeRecords()) return;
+    state.editingExpenseId = "";
+    state.lifeUploadImage = "";
+    showToast(existing ? "支出已更新" : "支出已保存");
+    navigate("life");
+  });
+  content.querySelector("#deleteExpense")?.addEventListener("click", () => {
+    const existing = state.lifeRecords.find((record) => String(record.id) === String(state.editingExpenseId));
+    if (!existing || !confirm(`确定删除「${existing.name}」吗？`)) return;
+    state.lifeRecords = state.lifeRecords.filter((record) => String(record.id) !== String(existing.id));
+    if (!saveLifeRecords()) return;
+    state.editingExpenseId = "";
+    state.lifeUploadImage = "";
+    showToast("支出已删除");
+    navigate("life");
   });
 }
 
 function bindViewEvents() {
   bindCommonButtons();
+  if (state.route === "life") bindLifeEvents();
   if (state.route === "collection") bindCollectionEvents();
   if (state.route === "catalog") bindCatalogEvents();
   if (state.route === "discover") bindDiscoverEvents();
   if (state.route === "add") bindAddEvents();
+  if (state.route === "life-add") bindLifeAddEvents();
 }
 
 async function hydrateSnapshots() {
@@ -637,16 +847,19 @@ tabbar.addEventListener("click", (event) => {
   const button = event.target.closest("[data-route]");
   if (button) navigate(button.dataset.route);
 });
-floatingAdd.addEventListener("click", () => navigate("add"));
+floatingAdd.addEventListener("click", () => navigate(state.route === "life" ? "life-add" : "add"));
 headerBack.addEventListener("click", () => {
   state.editingId = "";
+  state.editingExpenseId = "";
   state.prefill = null;
   state.uploadImage = "";
+  state.lifeUploadImage = "";
   navigate(state.addReturnRoute || "collection");
 });
 window.addEventListener("hashchange", render);
 
 state.records = loadRecords();
+state.lifeRecords = loadLifeRecords();
 state.selectedYear = [...new Set([new Date().getFullYear(), ...state.records.map(yearOf)])].sort((a, b) => b - a)[0];
 if (!location.hash) history.replaceState(null, "", "#/dashboard");
 render();
