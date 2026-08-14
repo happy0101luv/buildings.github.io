@@ -70,6 +70,7 @@ img { display: block; max-width: 100%; }
   cursor: pointer;
 }
 .header-back svg { width: 29px; height: 29px; stroke-width: 1.7; }
+.header-back[hidden] { display: none; }
 
 .wx-capsule {
   position: absolute;
@@ -137,7 +138,7 @@ img { display: block; max-width: 100%; }
   position: absolute;
   z-index: 31;
   right: 15px;
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
   width: 52px;
   height: 52px;
   border: 0;
