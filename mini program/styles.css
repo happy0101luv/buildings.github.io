@@ -317,6 +317,13 @@ img { display: block; max-width: 100%; }
 .empty-state small { display: inline-block; margin-top: 7px; color: var(--soft); font-size: 10px; }
 
 .life-intro h2 { font-size: 25px; }
+.life-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+.life-topbar .archive-intro { margin-bottom: 0; }
+.life-topbar .year-select { flex: 0 0 auto; margin-top: 3px; }
+.life-investment { min-height: 212px; }
+.life-card-title { margin: 18px 0 0; color: #e9e5df; font-size: 15px; font-weight: 500; }
+.life-investment .big-money { margin-top: 10px; }
+.life-period { top: 16px; right: 16px; }
 .life-investment .investment-split div:last-child strong { color: #ff4d51; }
 .expense-list { display: grid; gap: 8px; }
 .expense-card { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 10px; min-height: 76px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: #fff; cursor: pointer; }

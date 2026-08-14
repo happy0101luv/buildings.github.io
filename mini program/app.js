@@ -36,6 +36,8 @@ const state = {
   lifeRecords: [],
   lifeCategory: "全部",
   lifeSearch: "",
+  lifeYear: new Date().getFullYear(),
+  lifePeriod: "year",
   selectedYear: new Date().getFullYear(),
   collectionSearch: "",
   collectionStatus: "全部",
@@ -232,24 +234,29 @@ function expenseCard(expense) {
 
 function lifeView() {
   const expenses = allLifeExpenses();
+  const years = [...new Set([new Date().getFullYear(), ...expenses.map((item) => Number(String(item.date || "").slice(0, 4))).filter(Boolean)])].sort((a, b) => b - a);
+  const yearExpenses = expenses.filter((item) => Number(String(item.date || "").slice(0, 4)) === state.lifeYear);
+  const selectedMonth = new Date().getMonth() + 1;
+  const monthExpenses = yearExpenses.filter((item) => Number(String(item.date || "").slice(5, 7)) === selectedMonth);
+  const periodExpenses = state.lifePeriod === "month" ? monthExpenses : yearExpenses;
   const search = state.lifeSearch.trim().toLowerCase();
-  const filtered = expenses.filter((item) => {
+  const filtered = periodExpenses.filter((item) => {
     const matchesCategory = state.lifeCategory === "全部" || item.category === state.lifeCategory;
     const matchesSearch = !search || `${item.name || ""} ${item.note || ""} ${item.category || ""}`.toLowerCase().includes(search);
     return matchesCategory && matchesSearch;
   });
-  const total = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const monthKey = todayValue().slice(0, 7);
-  const monthTotal = expenses.filter((item) => String(item.date || "").startsWith(monthKey)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const collectionItems = expenses.filter((item) => item.category === "收藏");
-  const collectionTotal = collectionItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const total = periodExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const yearTotal = yearExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const monthTotal = monthExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const collectionItems = periodExpenses.filter((item) => item.category === "收藏");
   return `<section class="page">
-    <div class="archive-intro life-intro"><p class="eyebrow">DAILY LEDGER</p><h2>生活记账 <small>${expenses.length} 笔</small></h2></div>
+    <div class="life-topbar"><div class="archive-intro life-intro"><p class="eyebrow">DAILY LEDGER</p><h2>生活记账 <small>${periodExpenses.length} 笔</small></h2></div><select class="year-select" id="lifeYearSelect" aria-label="选择生活账本年份">${years.map((year) => `<option value="${year}" ${year === state.lifeYear ? "selected" : ""}>${year} 年</option>`).join("")}</select></div>
     <div class="investment-card life-investment">
-      <p class="eyebrow">LIFE EXPENDITURE</p><span class="investment-pill">全部生活支出</span>
+      <p class="eyebrow">LIFE EXPENDITURE</p><div class="annual-toggle life-period"><button type="button" data-life-period="year" class="${state.lifePeriod === "year" ? "active" : ""}">全年</button><button type="button" data-life-period="month" class="${state.lifePeriod === "month" ? "active" : ""}">本月</button></div>
+      <h3 class="life-card-title">${state.lifeYear} 年${state.lifePeriod === "month" ? `${String(selectedMonth).padStart(2, "0")}月` : ""}生活支出</h3>
       <div class="big-money"><b>¥</b>${formatMoney(total)}</div>
-      <p>${expenses.length} 笔支出&nbsp; · &nbsp;收藏同步 ${collectionItems.length} 笔</p>
-      <div class="investment-split"><div>本月支出<strong>¥${formatMoney(monthTotal)}</strong></div><div>收藏支出<strong>¥${formatMoney(collectionTotal)}</strong></div></div>
+      <p>${periodExpenses.length} 笔支出&nbsp; · &nbsp;收藏同步 ${collectionItems.length} 笔</p>
+      <div class="investment-split"><div>本月支出<strong>¥${formatMoney(monthTotal)}</strong></div><div>全年支出<strong>¥${formatMoney(yearTotal)}</strong></div></div>
     </div>
     <label class="search-box"><i data-lucide="search"></i><input id="lifeSearch" value="${escapeHtml(state.lifeSearch)}" placeholder="搜索支出名称 / 分类 / 备注" /></label>
     <div class="segment life-segment" id="lifeSegment">${LIFE_CATEGORIES.map((category) => `<button type="button" data-life-category="${category}" class="${state.lifeCategory === category ? "active" : ""}">${category}</button>`).join("")}</div>
@@ -531,6 +538,14 @@ function bindCollectionEvents() {
 }
 
 function bindLifeEvents() {
+  content.querySelector("#lifeYearSelect")?.addEventListener("change", (event) => {
+    state.lifeYear = Number(event.target.value);
+    render();
+  });
+  content.querySelectorAll("[data-life-period]").forEach((button) => button.addEventListener("click", () => {
+    state.lifePeriod = button.dataset.lifePeriod;
+    render();
+  }));
   const search = content.querySelector("#lifeSearch");
   search?.addEventListener("input", (event) => {
     state.lifeSearch = event.target.value;
@@ -804,6 +819,7 @@ function bindLifeAddEvents() {
     if (existing) state.lifeRecords = state.lifeRecords.map((record) => String(record.id) === String(existing.id) ? next : record);
     else state.lifeRecords.unshift(next);
     if (!saveLifeRecords()) return;
+    state.lifeYear = Number(next.date.slice(0, 4)) || state.lifeYear;
     state.editingExpenseId = "";
     state.lifeUploadImage = "";
     showToast(existing ? "支出已更新" : "支出已保存");
