@@ -29,6 +29,7 @@ const floatingAdd = document.querySelector("#floatingAdd");
 const formSaveBar = document.querySelector("#formSaveBar");
 const formSaveButton = document.querySelector("#formSaveButton");
 const toast = document.querySelector("#toast");
+let scrollIndicatorTimer = 0;
 
 const state = {
   route: "dashboard",
@@ -875,6 +876,11 @@ headerBack.addEventListener("click", () => {
   navigate(state.addReturnRoute || "collection");
 });
 window.addEventListener("hashchange", render);
+content.addEventListener("scroll", () => {
+  content.classList.add("is-scrolling");
+  window.clearTimeout(scrollIndicatorTimer);
+  scrollIndicatorTimer = window.setTimeout(() => content.classList.remove("is-scrolling"), 550);
+}, { passive: true });
 
 state.records = loadRecords();
 state.lifeRecords = loadLifeRecords();
