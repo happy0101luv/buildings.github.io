@@ -77,6 +77,7 @@ function loadLifeRecords() {
 function saveLifeRecords() {
   try {
     localStorage.setItem(LIFE_STORAGE_KEY, JSON.stringify(state.lifeRecords));
+    backupAllData("生活支出更新");
     return true;
   } catch {
     showToast("本机存储空间不足，请删除部分图片后重试");
@@ -88,14 +89,8 @@ function saveRecords(reason = "资料更新") {
   const payload = JSON.stringify(state.records);
   try {
     localStorage.setItem(SCOPED_STORAGE_KEY, payload);
-    const backups = safeParse(localStorage.getItem(BACKUP_KEY), []);
-    const imageLightRecords = state.records.map((record) => ({
-      ...record,
-      imageUrl: String(record.imageUrl || "").startsWith("data:") ? "" : record.imageUrl || "",
-    }));
-    backups.unshift({ createdAt: new Date().toISOString(), reason, payload: JSON.stringify(imageLightRecords) });
-    localStorage.setItem(BACKUP_KEY, JSON.stringify(backups.slice(0, 10)));
     localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ records: state.records, reason, savedAt: new Date().toISOString() }));
+    backupAllData(reason);
     return true;
   } catch (error) {
     showToast("本机存储空间不足，请删除部分图片后重试");
@@ -113,6 +108,18 @@ function imageLightRecords(records) {
     ...record,
     imageUrl: String(record.imageUrl || "").startsWith("data:") ? "" : record.imageUrl || "",
   }));
+}
+
+function buildLightSnapshot() {
+  return {
+    records: imageLightRecords(state.records),
+    lifeRecords: imageLightRecords(state.lifeRecords),
+  };
+}
+
+function getFullBackups() {
+  const backups = safeParse(localStorage.getItem(FULL_BACKUP_KEY), []);
+  return Array.isArray(backups) ? backups : [];
 }
 
 function addCollectionBackup(reason) {
@@ -153,17 +160,13 @@ function downloadArchive(archive, filename) {
 
 function backupAllData(reason) {
   try {
-    const snapshot = {
-      records: imageLightRecords(state.records),
-      lifeRecords: imageLightRecords(state.lifeRecords),
-    };
+    const snapshot = buildLightSnapshot();
     const payload = JSON.stringify(snapshot);
-    const backups = safeParse(localStorage.getItem(FULL_BACKUP_KEY), []);
-    const list = Array.isArray(backups) ? backups : [];
-    if (!list.some((backup) => backup.payload === payload)) {
-      list.unshift({ createdAt: new Date().toISOString(), reason, payload });
-      localStorage.setItem(FULL_BACKUP_KEY, JSON.stringify(list.slice(0, 5)));
-    }
+    const list = getFullBackups();
+    const existingIndex = list.findIndex((backup) => backup.payload === payload);
+    if (existingIndex >= 0) list.splice(existingIndex, 1);
+    list.unshift({ createdAt: new Date().toISOString(), reason, payload });
+    localStorage.setItem(FULL_BACKUP_KEY, JSON.stringify(list.slice(0, 5)));
     addCollectionBackup(reason);
     return true;
   } catch {
@@ -172,8 +175,7 @@ function backupAllData(reason) {
 }
 
 function fullBackupCount() {
-  const backups = safeParse(localStorage.getItem(FULL_BACKUP_KEY), []);
-  return Array.isArray(backups) ? backups.length : 0;
+  return getFullBackups().length;
 }
 
 function escapeHtml(value = "") {
@@ -498,9 +500,11 @@ function profileView() {
       <div class="data-vault-head"><div><h3>资料保险箱</h3><p>收藏与生活记账完整 JSON 备份</p></div><i data-lucide="shield-check"></i></div>
       <div class="data-actions">
         <button id="exportBackup" type="button"><i data-lucide="download"></i><span>导出数据<small>按标准模板保存</small></span></button>
+        <button id="copyBackup" type="button"><i data-lucide="copy"></i><span>复制备份<small>复制完整 JSON</small></span></button>
         <button id="importBackup" type="button"><i data-lucide="upload"></i><span>导入数据<small>导入前自动备份</small></span></button>
+        <button id="restorePrevious" type="button"><i data-lucide="history"></i><span>恢复上版<small>恢复最近历史版本</small></span></button>
       </div>
-      <p class="data-backup-status">已保存 ${fullBackupCount()} 个导入前版本 · 当前 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出</p>
+      <p class="data-backup-status">已自动保存 ${fullBackupCount()} 个版本 · 当前 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出</p>
       <input id="backupImportFile" type="file" accept="application/json,.json" hidden />
     </div>
     <p class="profile-section-title">测试工具</p>
@@ -988,11 +992,79 @@ async function importBackupFile(file) {
   }
 }
 
+async function copyBackupToClipboard() {
+  backupAllData("复制备份");
+  const contentText = JSON.stringify(buildDataArchive(), null, 2);
+  try {
+    await navigator.clipboard.writeText(contentText);
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = contentText;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.append(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) throw new Error("copy failed");
+  }
+  showToast(`已复制 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
+}
+
+function findPreviousDataSnapshot() {
+  const currentPayload = JSON.stringify(buildLightSnapshot());
+  for (const backup of getFullBackups()) {
+    if (!backup?.payload || backup.payload === currentPayload) continue;
+    const snapshot = safeParse(backup.payload, null);
+    if (snapshot && Array.isArray(snapshot.records) && Array.isArray(snapshot.lifeRecords)) return snapshot;
+  }
+  const currentRecordsPayload = JSON.stringify(imageLightRecords(state.records));
+  for (const backup of getCollectionBackups()) {
+    if (!backup?.payload || backup.payload === currentRecordsPayload) continue;
+    const records = safeParse(backup.payload, null);
+    if (Array.isArray(records)) return { records, lifeRecords: structuredClone(state.lifeRecords) };
+  }
+  return null;
+}
+
+function restorePreviousData() {
+  const snapshot = findPreviousDataSnapshot();
+  if (!snapshot) return showToast("暂时没有可以恢复的历史版本");
+  if (!snapshot.records.every(isValidImportedRecord) || !snapshot.lifeRecords.every(isValidImportedExpense)) {
+    return showToast("历史版本校验失败，无法恢复");
+  }
+  if (!window.confirm(`恢复上一个版本吗？将恢复为 ${snapshot.records.length} 条收藏和 ${snapshot.lifeRecords.length} 笔生活支出，当前版本会继续保留。`)) return;
+  if (!backupAllData("恢复上版前自动备份")) return showToast("本机备份空间不足，已取消恢复");
+  const previousRecords = structuredClone(state.records);
+  const previousLifeRecords = structuredClone(state.lifeRecords);
+  try {
+    state.records = structuredClone(snapshot.records);
+    state.lifeRecords = structuredClone(snapshot.lifeRecords);
+    persistAllData(state.records, state.lifeRecords, "恢复上版");
+    addCollectionBackup("恢复上版");
+    backupAllData("恢复上版");
+    const collectionYears = state.records.map(yearOf).filter(Number.isFinite);
+    state.selectedYear = collectionYears.length ? Math.max(...collectionYears) : new Date().getFullYear();
+    const lifeYears = state.lifeRecords.map((record) => Number(String(record.date || "").slice(0, 4))).filter(Number.isFinite);
+    state.lifeYear = lifeYears.length ? Math.max(...lifeYears) : new Date().getFullYear();
+    showToast(`已恢复上版：${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
+    render();
+  } catch {
+    state.records = previousRecords;
+    state.lifeRecords = previousLifeRecords;
+    try { persistAllData(previousRecords, previousLifeRecords, "恢复失败自动还原"); } catch {}
+    showToast("恢复失败，当前数据未改变");
+  }
+}
+
 function bindProfileEvents() {
   content.querySelector("#exportBackup")?.addEventListener("click", () => {
-    addCollectionBackup("手动导出");
+    backupAllData("手动导出");
     downloadArchive(buildDataArchive(), `hangar07-backup-${todayValue()}.json`);
     showToast(`已导出 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
+  });
+  content.querySelector("#copyBackup")?.addEventListener("click", async () => {
+    try { await copyBackupToClipboard(); } catch { showToast("复制失败，请改用导出数据"); }
   });
   const importInput = content.querySelector("#backupImportFile");
   content.querySelector("#importBackup")?.addEventListener("click", () => importInput?.click());
@@ -1001,6 +1073,7 @@ function bindProfileEvents() {
     importInput.value = "";
     if (file) await importBackupFile(file);
   });
+  content.querySelector("#restorePrevious")?.addEventListener("click", restorePreviousData);
   content.querySelector("#clearTestData")?.addEventListener("click", () => {
     if (!state.records.length && !state.lifeRecords.length) return showToast("当前没有可清空的测试数据");
     if (!window.confirm("确定一键清空当前设备中的全部收藏与生活记账吗？清空前会自动保存本机备份。")) return;
@@ -1073,6 +1146,7 @@ content.addEventListener("scroll", () => {
 state.records = loadRecords();
 state.lifeRecords = loadLifeRecords();
 state.selectedYear = [...new Set([new Date().getFullYear(), ...state.records.map(yearOf)])].sort((a, b) => b - a)[0];
+backupAllData("初始快照");
 if (!location.hash) history.replaceState(null, "", "#/dashboard");
 render();
 hydrateSnapshots();
