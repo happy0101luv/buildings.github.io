@@ -305,7 +305,8 @@ img { display: block; max-width: 100%; }
 .search-box svg { flex: 0 0 auto; width: 18px; color: var(--soft); }
 .search-box input { width: 100%; border: 0; outline: 0; background: transparent; font-size: 15px; }
 .search-box input::placeholder { color: var(--soft); }
-.collection-search input { font-size: 16px; }
+.collection-search { margin-top: 9px; }
+.collection-search + .segment { margin-top: 11px; }
 .segment { display: grid; grid-template-columns: repeat(4, 1fr); margin: 8px 0 12px; padding: 3px; border: 1px solid #d5d1cb; border-radius: 7px; background: #edeae4; }
 .segment button { height: 35px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 800; }
 .segment button.active { background: #151210; color: #fff; }

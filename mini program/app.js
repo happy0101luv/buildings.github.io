@@ -365,7 +365,7 @@ function collectionView() {
       <p>${totalCount} 件藏品&nbsp; · &nbsp;${paymentPending.length} 待补款&nbsp; · &nbsp;${arrivalPending.length} 待到货</p>
       <div class="investment-split"><div>已付金额<strong>¥${formatMoney(totalPaid)}</strong></div><div>待补款<strong>¥${formatMoney(totalDue)}</strong></div></div>
     </div>
-    <label class="search-box collection-search"><input id="collectionSearch" value="${escapeHtml(state.collectionSearch)}" placeholder="搜索藏品 / 厂牌 / 分类 / 备注" /></label>
+    <label class="search-box collection-search"><i data-lucide="search"></i><input id="collectionSearch" value="${escapeHtml(state.collectionSearch)}" placeholder="搜索藏品 / 厂牌 / 分类 / 备注" /></label>
     <div class="segment" id="statusSegment">
       ${["全部", "已入库", "待补款", "待到货"].map((item) => `<button type="button" data-status="${item}" class="${state.collectionStatus === item || (item === "已入库" && state.collectionStatus === "已入库") ? "active" : ""}">${item}</button>`).join("")}
     </div>
