@@ -22,6 +22,8 @@ const pageTitle = document.querySelector("#pageTitle");
 const headerBack = document.querySelector("#headerBack");
 const tabbar = document.querySelector("#tabbar");
 const floatingAdd = document.querySelector("#floatingAdd");
+const formSaveBar = document.querySelector("#formSaveBar");
+const formSaveButton = document.querySelector("#formSaveButton");
 const toast = document.querySelector("#toast");
 
 const state = {
@@ -366,7 +368,6 @@ function addView() {
       <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="uploadNote">原图不超过 1MB，上传时自动压缩为 WebP。</p>
     </section>
     ${existing ? `<button class="delete-record" id="deleteRecord" type="button">删除这条收藏</button>` : ""}
-    <div class="form-footer"><button type="submit">${existing ? "保存修改" : "保存收藏"}</button></div>
   </form>`;
 }
 
@@ -376,6 +377,8 @@ function render() {
   const formMode = state.route === "add";
   shell.classList.toggle("form-mode", formMode);
   headerBack.hidden = !formMode;
+  formSaveBar.hidden = !formMode;
+  if (formMode) formSaveButton.textContent = state.editingId ? "保存修改" : "保存收藏";
   floatingAdd.hidden = !["dashboard", "collection"].includes(state.route);
   tabbar.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.route === state.route));
   const views = { dashboard: dashboardView, collection: collectionView, catalog: catalogView, discover: discoverView, profile: profileView, add: addView };
