@@ -3,6 +3,7 @@ const SCOPED_STORAGE_KEY = `${STORAGE_KEY}:本地镜像`;
 const BACKUP_KEY = "hangar07-backups-v1:本地镜像";
 const PENDING_SYNC_KEY = "hangar07-pending-sync-v1:本地镜像";
 const LIFE_STORAGE_KEY = "wanwu-life-expenses-v1";
+const FULL_BACKUP_KEY = "wanwu-full-data-backups-v1";
 const MAX_IMAGE_UPLOAD_BYTES = 1024 * 1024;
 const COMPRESSED_IMAGE_MAX_BYTES = 180 * 1024;
 const COMPRESSED_IMAGE_MAX_SIDE = 1280;
@@ -100,6 +101,79 @@ function saveRecords(reason = "资料更新") {
     showToast("本机存储空间不足，请删除部分图片后重试");
     return false;
   }
+}
+
+function getCollectionBackups() {
+  const backups = safeParse(localStorage.getItem(BACKUP_KEY), []);
+  return Array.isArray(backups) ? backups : [];
+}
+
+function imageLightRecords(records) {
+  return records.map((record) => ({
+    ...record,
+    imageUrl: String(record.imageUrl || "").startsWith("data:") ? "" : record.imageUrl || "",
+  }));
+}
+
+function addCollectionBackup(reason) {
+  try {
+    const payload = JSON.stringify(imageLightRecords(state.records));
+    const backups = getCollectionBackups();
+    if (!backups.some((backup) => backup.payload === payload)) {
+      backups.unshift({ createdAt: new Date().toISOString(), reason, payload });
+      localStorage.setItem(BACKUP_KEY, JSON.stringify(backups.slice(0, 10)));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function buildDataArchive() {
+  return {
+    exportedAt: new Date().toISOString(),
+    app: "玩物不丧志",
+    version: 1,
+    records: structuredClone(state.records),
+    backups: structuredClone(getCollectionBackups()),
+    lifeRecords: structuredClone(state.lifeRecords),
+  };
+}
+
+function downloadArchive(archive, filename) {
+  const blob = new Blob([JSON.stringify(archive, null, 2)], { type: "application/json;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+function backupAllData(reason) {
+  try {
+    const snapshot = {
+      records: imageLightRecords(state.records),
+      lifeRecords: imageLightRecords(state.lifeRecords),
+    };
+    const payload = JSON.stringify(snapshot);
+    const backups = safeParse(localStorage.getItem(FULL_BACKUP_KEY), []);
+    const list = Array.isArray(backups) ? backups : [];
+    if (!list.some((backup) => backup.payload === payload)) {
+      list.unshift({ createdAt: new Date().toISOString(), reason, payload });
+      localStorage.setItem(FULL_BACKUP_KEY, JSON.stringify(list.slice(0, 5)));
+    }
+    addCollectionBackup(reason);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function fullBackupCount() {
+  const backups = safeParse(localStorage.getItem(FULL_BACKUP_KEY), []);
+  return Array.isArray(backups) ? backups.length : 0;
 }
 
 function escapeHtml(value = "") {
@@ -419,6 +493,18 @@ function profileView() {
     <div class="wish-card"><div class="wish-card-top"><p class="eyebrow">WISH BOARD</p><h3>愿望清单</h3><p>收好每一个想入手的玩具</p></div><div class="wish-card-foot"><span>0 件愿望</span><b>查看愿望画板 ›</b></div></div>
     <p class="profile-section-title">参与共建</p>
     <div class="project-card"><p class="eyebrow">PROJECT COMPLETION</p><h3>补完计划</h3><p>提建议、看共识、跟进采纳进度</p><b>进入 ›</b></div>
+    <p class="profile-section-title">数据与备份</p>
+    <div class="data-vault">
+      <div class="data-vault-head"><div><h3>资料保险箱</h3><p>收藏与生活记账完整 JSON 备份</p></div><i data-lucide="shield-check"></i></div>
+      <div class="data-actions">
+        <button id="exportBackup" type="button"><i data-lucide="download"></i><span>导出数据<small>按标准模板保存</small></span></button>
+        <button id="importBackup" type="button"><i data-lucide="upload"></i><span>导入数据<small>导入前自动备份</small></span></button>
+      </div>
+      <p class="data-backup-status">已保存 ${fullBackupCount()} 个导入前版本 · 当前 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出</p>
+      <input id="backupImportFile" type="file" accept="application/json,.json" hidden />
+    </div>
+    <p class="profile-section-title">测试工具</p>
+    <button class="clear-test-data" id="clearTestData" type="button"><span><b>一键清空测试数据</b><small>清空当前设备的收藏与生活记账</small></span><i data-lucide="trash-2"></i></button>
     <p class="profile-section-title">账户与安全</p>
     <div class="account-card"><div><h3>本地资料库</h3><p>支持 JSON 备份与恢复</p></div><a href="../">退出到首页 ›</a></div>
   </section>`;
@@ -840,12 +926,114 @@ function bindLifeAddEvents() {
   });
 }
 
+function isValidImportedRecord(record) {
+  return Boolean(record && record.id && record.name && record.category && record.status && record.date);
+}
+
+function isValidImportedExpense(record) {
+  return Boolean(record && record.id && record.name && record.category && record.date && Number.isFinite(Number(record.amount)));
+}
+
+function persistAllData(records, lifeRecords, reason) {
+  localStorage.setItem(SCOPED_STORAGE_KEY, JSON.stringify(records));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  localStorage.setItem(LIFE_STORAGE_KEY, JSON.stringify(lifeRecords));
+  localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ records, reason, savedAt: new Date().toISOString() }));
+}
+
+async function importBackupFile(file) {
+  if (file.size > 25 * 1024 * 1024) return showToast("备份文件不能超过 25MB");
+  try {
+    const archive = JSON.parse(await file.text());
+    const importedRecords = Array.isArray(archive) ? archive : archive?.records;
+    const hasLifeRecords = !Array.isArray(archive) && Object.prototype.hasOwnProperty.call(archive || {}, "lifeRecords");
+    const importedLifeRecords = hasLifeRecords ? archive.lifeRecords : state.lifeRecords;
+    if (!Array.isArray(importedRecords) || !importedRecords.every(isValidImportedRecord)) throw new Error("invalid records");
+    if (!Array.isArray(importedLifeRecords) || !importedLifeRecords.every(isValidImportedExpense)) throw new Error("invalid expenses");
+    const message = hasLifeRecords
+      ? `将导入 ${importedRecords.length} 条收藏和 ${importedLifeRecords.length} 笔生活支出。当前数据会先自动备份，确认继续吗？`
+      : `将导入 ${importedRecords.length} 条收藏。该旧版备份不含生活记账，现有生活数据会保留。当前数据会先自动备份，确认继续吗？`;
+    if (!window.confirm(message)) return;
+
+    const beforeArchive = buildDataArchive();
+    const stamp = new Date().toISOString().replaceAll(":", "-").slice(0, 19);
+    downloadArchive(beforeArchive, `hangar07-auto-backup-before-import-${stamp}.json`);
+    if (!backupAllData("导入前自动备份")) {
+      showToast("本机备份空间不足，已取消导入");
+      return;
+    }
+
+    const previousRecords = structuredClone(state.records);
+    const previousLifeRecords = structuredClone(state.lifeRecords);
+    try {
+      state.records = structuredClone(importedRecords);
+      state.lifeRecords = structuredClone(importedLifeRecords);
+      persistAllData(state.records, state.lifeRecords, "导入恢复");
+      addCollectionBackup("导入恢复");
+    } catch (error) {
+      state.records = previousRecords;
+      state.lifeRecords = previousLifeRecords;
+      persistAllData(previousRecords, previousLifeRecords, "导入失败自动还原");
+      throw error;
+    }
+
+    const collectionYears = state.records.map(yearOf).filter(Number.isFinite);
+    state.selectedYear = collectionYears.length ? Math.max(...collectionYears) : new Date().getFullYear();
+    const lifeYears = state.lifeRecords.map((record) => Number(String(record.date || "").slice(0, 4))).filter(Number.isFinite);
+    state.lifeYear = lifeYears.length ? Math.max(...lifeYears) : new Date().getFullYear();
+    showToast(`导入完成：${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
+    render();
+  } catch (error) {
+    showToast("导入失败：请选择“玩物不丧志”导出的 JSON 备份文件");
+  }
+}
+
+function bindProfileEvents() {
+  content.querySelector("#exportBackup")?.addEventListener("click", () => {
+    addCollectionBackup("手动导出");
+    downloadArchive(buildDataArchive(), `hangar07-backup-${todayValue()}.json`);
+    showToast(`已导出 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
+  });
+  const importInput = content.querySelector("#backupImportFile");
+  content.querySelector("#importBackup")?.addEventListener("click", () => importInput?.click());
+  importInput?.addEventListener("change", async () => {
+    const file = importInput.files?.[0];
+    importInput.value = "";
+    if (file) await importBackupFile(file);
+  });
+  content.querySelector("#clearTestData")?.addEventListener("click", () => {
+    if (!state.records.length && !state.lifeRecords.length) return showToast("当前没有可清空的测试数据");
+    if (!window.confirm("确定一键清空当前设备中的全部收藏与生活记账吗？清空前会自动保存本机备份。")) return;
+    if (!backupAllData("清空测试数据前自动备份")) return showToast("本机备份空间不足，已取消清空");
+    const previousRecords = structuredClone(state.records);
+    const previousLifeRecords = structuredClone(state.lifeRecords);
+    try {
+      localStorage.setItem(SCOPED_STORAGE_KEY, "[]");
+      localStorage.setItem(STORAGE_KEY, "[]");
+      localStorage.setItem(LIFE_STORAGE_KEY, "[]");
+      localStorage.removeItem(PENDING_SYNC_KEY);
+      state.records = [];
+      state.lifeRecords = [];
+      state.selectedYear = new Date().getFullYear();
+      state.lifeYear = new Date().getFullYear();
+      showToast("测试数据已清空");
+      render();
+    } catch {
+      state.records = previousRecords;
+      state.lifeRecords = previousLifeRecords;
+      try { persistAllData(previousRecords, previousLifeRecords, "清空失败自动还原"); } catch {}
+      showToast("清空失败：本机存储不可用");
+    }
+  });
+}
+
 function bindViewEvents() {
   bindCommonButtons();
   if (state.route === "life") bindLifeEvents();
   if (state.route === "collection") bindCollectionEvents();
   if (state.route === "catalog") bindCatalogEvents();
   if (state.route === "discover") bindDiscoverEvents();
+  if (state.route === "profile") bindProfileEvents();
   if (state.route === "add") bindAddEvents();
   if (state.route === "life-add") bindLifeAddEvents();
 }
