@@ -6,6 +6,9 @@ const IMAGE_MATCH_ENDPOINT = "./api/image-match";
 const IMAGE_MATCH_OPTIONS_ENDPOINT = "./api/image-match/options";
 const IMAGE_MATCH_SELECT_ENDPOINT = "./api/image-match/select";
 const UPLOAD_IMAGE_ENDPOINT = "./api/upload-image";
+const MAX_IMAGE_UPLOAD_BYTES = 1024 * 1024;
+const COMPRESSED_IMAGE_MAX_BYTES = 420 * 1024;
+const COMPRESSED_IMAGE_MAX_SIDE = 1280;
 const RECORDS_ENDPOINT = "./api/records";
 const CATALOG_FROM_RECORD_ENDPOINT = "./api/catalog/from-record";
 const CATALOG_GUNDAM_NORMALIZE_ENDPOINT = "./api/catalog/normalize/gundam";
@@ -4034,8 +4037,21 @@ function closeImagePreview() {
   if (overlay) overlay.hidden = true;
 }
 
-// 上传前在浏览器里缩放，避免大图超过后端 512KB 限制。
-function resizeImageToDataUrl(file, maxSide = 1024, quality = 0.85) {
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0KB";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+function dataUrlByteSize(dataUrl) {
+  const base64 = String(dataUrl || "").split(",")[1] || "";
+  if (!base64) return 0;
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor(base64.length * 3 / 4) - padding);
+}
+
+// 所有合格图片都在浏览器内缩放并转为 WebP，减少本地记录与备份的体积。
+function resizeImageToDataUrl(file, maxSide = COMPRESSED_IMAGE_MAX_SIDE, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("读取失败"));
@@ -4053,9 +4069,7 @@ function resizeImageToDataUrl(file, maxSide = 1024, quality = 0.85) {
         canvas.width = width;
         canvas.height = height;
         canvas.getContext("2d").drawImage(image, 0, 0, width, height);
-        // PNG 透明图保留 png，其余转 jpeg 压缩。
-        const isPng = file.type === "image/png";
-        resolve(canvas.toDataURL(isPng ? "image/png" : "image/jpeg", quality));
+        resolve(canvas.toDataURL("image/webp", quality));
       };
       image.src = reader.result;
     };
@@ -4063,14 +4077,53 @@ function resizeImageToDataUrl(file, maxSide = 1024, quality = 0.85) {
   });
 }
 
+async function compressImageToDataUrl(file) {
+  const attempts = [
+    [COMPRESSED_IMAGE_MAX_SIDE, 0.82],
+    [1100, 0.74],
+    [900, 0.66],
+    [720, 0.58],
+  ];
+  let result = "";
+  for (const [maxSide, quality] of attempts) {
+    result = await resizeImageToDataUrl(file, maxSide, quality);
+    if (dataUrlByteSize(result) <= COMPRESSED_IMAGE_MAX_BYTES) return result;
+  }
+  if (dataUrlByteSize(result) > COMPRESSED_IMAGE_MAX_BYTES) {
+    throw new Error("图片压缩后仍然过大，请换一张图片");
+  }
+  return result;
+}
+
 async function uploadImageFile(file) {
   if (!file) return;
-  if (!file.type.startsWith("image/")) { showToast("请选择图片文件"); return; }
-  setRecognizeHint("正在上传图片…");
+  const supportedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (!supportedTypes.has(file.type)) {
+    showToast("请选择 JPG、PNG 或 WebP 图片");
+    setRecognizeHint("图片格式不支持，请选择 JPG、PNG 或 WebP", true);
+    return;
+  }
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    const message = `原图不能超过 1MB（当前 ${formatFileSize(file.size)}）`;
+    showToast(message);
+    setRecognizeHint(message, true);
+    return;
+  }
+  setRecognizeHint("正在压缩图片…");
   try {
-    let dataUrl = await resizeImageToDataUrl(file);
-    // 万一压缩后仍偏大，再降一档质量。
-    if (dataUrl.length > 480 * 1024) dataUrl = await resizeImageToDataUrl(file, 900, 0.72);
+    const dataUrl = await compressImageToDataUrl(file);
+    const compressedSize = dataUrlByteSize(dataUrl);
+
+    if (!window.WanwuCloud?.configured) {
+      ui.recordForm.elements.imageUrl.value = dataUrl;
+      ui.recordForm.dataset.storagePath = "";
+      refreshImageThumb();
+      const saveLabel = ui.submitRecordLabel?.textContent || "保存";
+      setRecognizeHint(`已压缩至 ${formatFileSize(compressedSize)}，点「${saveLabel}」保存到当前浏览器`);
+      return;
+    }
+
+    setRecognizeHint(`已压缩至 ${formatFileSize(compressedSize)}，正在上传…`);
     const res = await fetch(UPLOAD_IMAGE_ENDPOINT, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -4083,8 +4136,10 @@ async function uploadImageFile(file) {
     refreshImageThumb();
     const saveLabel = ui.submitRecordLabel?.textContent || "保存";
     setRecognizeHint(`图片已上传，点「${saveLabel}」写入资料库`);
-  } catch {
-    setRecognizeHint("上传失败，请换一张或稍后再试", true);
+  } catch (error) {
+    const message = error?.message || "上传失败，请换一张或稍后再试";
+    setRecognizeHint(message, true);
+    showToast(message);
   }
 }
 

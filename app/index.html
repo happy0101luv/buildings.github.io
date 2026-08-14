@@ -1113,10 +1113,10 @@
               <input name="dueDate" type="date" />
             </label>
             <label class="wide">
-              <span>产品图片 <small>可选：上传本机图片 / 联网识图 / 或粘贴地址</small></span>
+              <span>产品图片 <small>可选：JPG / PNG / WebP，原图不超过 1MB，上传时自动压缩</small></span>
               <div class="image-url-row">
                 <input name="imageUrl" type="text" placeholder="留空自动识别，或上传 / 粘贴地址" />
-                <button type="button" class="recognize-btn" id="uploadImageBtn" title="从本机上传一张图片">
+                <button type="button" class="recognize-btn" id="uploadImageBtn" title="上传 JPG、PNG 或 WebP 图片，原图最大 1MB">
                   <i data-lucide="upload"></i>
                   <span>上传</span>
                 </button>
@@ -1125,7 +1125,7 @@
                   <span id="recognizeImageLabel">识图</span>
                 </button>
               </div>
-              <input type="file" id="imageFileInput" accept="image/*" hidden />
+              <input type="file" id="imageFileInput" accept="image/jpeg,image/png,image/webp" hidden />
               <div class="image-current" id="imageCurrent" hidden>
                 <img id="imageCurrentImg" alt="当前产品图" onerror="hideImageThumb()" />
                 <button type="button" class="image-clear" id="imageClearBtn" title="移除图片">移除</button>
