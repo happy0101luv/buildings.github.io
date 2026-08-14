@@ -473,7 +473,7 @@ function lifeAddView() {
     <section class="form-section">
       <p class="eyebrow">LIFE EXPENSE</p><h2 class="form-title">生活支出</h2>
       <label class="field"><span>支出名称<b>*</b></span><input name="name" required maxlength="80" value="${escapeHtml(source.name || "")}" placeholder="例如：午餐、房租、地铁" /></label>
-      <label class="field"><span>支出分类</span><input type="hidden" name="category" value="${escapeHtml(category)}" /></label>
+      <label class="field"><span>支出分类<b>*</b></span><input type="hidden" name="category" value="${escapeHtml(category)}" /></label>
       <div class="quick-categories life-category-picks">${LIFE_CATEGORIES.slice(1).map((item) => `<button type="button" data-life-pick="${item}" class="${item === category ? "active" : ""}">${item}</button>`).join("")}</div>
       <div class="form-two"><label class="field"><span>金额（人民币）<b>*</b></span><input name="amount" type="number" min="0.01" step="0.01" required value="${Number(source.amount || 0) || ""}" placeholder="0" /></label><label class="field"><span>支出日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label></div>
     </section>
@@ -801,15 +801,17 @@ function bindLifeAddEvents() {
     event.preventDefault();
     const data = new FormData(form);
     const name = String(data.get("name") || "").trim();
+    const category = String(data.get("category") || "").trim();
     const amount = Number(data.get("amount") || 0);
     if (!name) return showToast("请填写支出名称");
+    if (!LIFE_CATEGORIES.slice(1).includes(category)) return showToast("请选择支出分类");
     if (!Number.isFinite(amount) || amount <= 0) return showToast("请填写正确的支出金额");
     const existing = state.lifeRecords.find((record) => String(record.id) === String(state.editingExpenseId));
     const next = {
       ...(existing || {}),
       id: existing?.id || (crypto.randomUUID?.() || `expense-${Date.now()}`),
       name,
-      category: String(data.get("category") || "食"),
+      category,
       amount,
       date: String(data.get("date") || todayValue()),
       note: String(data.get("note") || "").trim(),
