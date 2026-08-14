@@ -137,7 +137,7 @@ img { display: block; max-width: 100%; }
   position: absolute;
   z-index: 31;
   right: 15px;
-  bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   width: 52px;
   height: 52px;
   border: 0;
