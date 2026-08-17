@@ -41,6 +41,7 @@ const state = {
   lifeYear: new Date().getFullYear(),
   lifePeriod: "year",
   selectedYear: new Date().getFullYear(),
+  dashboardPeriod: "year",
   collectionSearch: "",
   collectionStatus: "全部",
   collectionCategory: "全部分类",
@@ -217,7 +218,24 @@ function dueAmount(record) {
 }
 
 function yearOf(record) {
-  return Number(String(record.date || record.createdAt || "").slice(0, 4)) || state.selectedYear;
+  return Number(String(record.date || record.createdAt || "").slice(0, 4)) || new Date().getFullYear();
+}
+
+function selectedYearValue(value) {
+  return value === "all" ? "all" : Number(value);
+}
+
+function yearOptions(records, selectedYear) {
+  const currentYear = new Date().getFullYear();
+  const dataYears = records
+    .map((record) => Number(String(record.date || record.createdAt || "").slice(0, 4)))
+    .filter((year) => Number.isFinite(year) && year > 1900 && year <= currentYear);
+  const earliestYear = dataYears.length ? Math.min(...dataYears) : currentYear;
+  const years = Array.from({ length: currentYear - earliestYear + 1 }, (_, index) => currentYear - index);
+  return [
+    `<option value="all" ${selectedYear === "all" ? "selected" : ""}>全年</option>`,
+    ...years.map((year) => `<option value="${year}" ${year === selectedYear ? "selected" : ""}>${year} 年</option>`),
+  ].join("");
 }
 
 function normalizeAssetUrl(url = "") {
@@ -311,10 +329,17 @@ function expenseCard(expense) {
 
 function lifeView() {
   const expenses = allLifeExpenses();
-  const years = [...new Set([new Date().getFullYear(), ...expenses.map((item) => Number(String(item.date || "").slice(0, 4))).filter(Boolean)])].sort((a, b) => b - a);
-  const yearExpenses = expenses.filter((item) => Number(String(item.date || "").slice(0, 4)) === state.lifeYear);
+  const currentYear = new Date().getFullYear();
+  const displayYear = state.lifeYear === "all" ? "全部年份" : `${state.lifeYear} 年`;
+  const yearExpenses = state.lifeYear === "all"
+    ? expenses
+    : expenses.filter((item) => Number(String(item.date || "").slice(0, 4)) === state.lifeYear);
   const selectedMonth = new Date().getMonth() + 1;
-  const monthExpenses = yearExpenses.filter((item) => Number(String(item.date || "").slice(5, 7)) === selectedMonth);
+  const monthYear = state.lifeYear === "all" ? currentYear : state.lifeYear;
+  const monthExpenses = expenses.filter((item) => (
+    Number(String(item.date || "").slice(0, 4)) === monthYear
+    && Number(String(item.date || "").slice(5, 7)) === selectedMonth
+  ));
   const periodExpenses = state.lifePeriod === "month" ? monthExpenses : yearExpenses;
   const search = state.lifeSearch.trim().toLowerCase();
   const filtered = periodExpenses.filter((item) => {
@@ -327,15 +352,15 @@ function lifeView() {
   const monthTotal = monthExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const collectionItems = periodExpenses.filter((item) => item.category === "收藏");
   return `<section class="page">
-    <div class="life-topbar"><div class="archive-intro life-intro"><p class="eyebrow">DAILY LEDGER</p><h2>生活记账 <small>${periodExpenses.length} 笔</small></h2></div><select class="year-select" id="lifeYearSelect" aria-label="选择生活账本年份">${years.map((year) => `<option value="${year}" ${year === state.lifeYear ? "selected" : ""}>${year} 年</option>`).join("")}</select></div>
+    <div class="life-topbar"><div class="archive-intro life-intro"><p class="eyebrow">DAILY LEDGER</p><h2>生活记账 <small>${periodExpenses.length} 笔</small></h2></div><select class="year-select" id="lifeYearSelect" aria-label="选择生活账本年份">${yearOptions(expenses, state.lifeYear)}</select></div>
     <div class="investment-card life-investment">
       <p class="eyebrow">LIFE EXPENDITURE</p><div class="annual-toggle life-period"><button type="button" data-life-period="year" class="${state.lifePeriod === "year" ? "active" : ""}">全年</button><button type="button" data-life-period="month" class="${state.lifePeriod === "month" ? "active" : ""}">本月</button></div>
-      <h3 class="life-card-title">${state.lifeYear} 年${state.lifePeriod === "month" ? `${String(selectedMonth).padStart(2, "0")}月` : ""}生活支出</h3>
+      <h3 class="life-card-title">${state.lifePeriod === "month" ? `${monthYear} 年 ${String(selectedMonth).padStart(2, "0")} 月` : displayYear}生活支出</h3>
       <div class="big-money"><b>¥</b>${formatMoney(total)}</div>
       <p>${periodExpenses.length} 笔支出&nbsp; · &nbsp;收藏同步 ${collectionItems.length} 笔</p>
       <div class="investment-split"><div>本月支出<strong>¥${formatMoney(monthTotal)}</strong></div><div>全年支出<strong>¥${formatMoney(yearTotal)}</strong></div></div>
     </div>
-    <label class="search-box"><i data-lucide="search"></i><input id="lifeSearch" value="${escapeHtml(state.lifeSearch)}" placeholder="搜索支出名称 / 分类 / 备注" /></label>
+    <label class="search-box life-search"><i data-lucide="search"></i><input id="lifeSearch" value="${escapeHtml(state.lifeSearch)}" placeholder="搜索支出名称 / 分类 / 备注" /></label>
     <div class="segment life-segment" id="lifeSegment">${LIFE_CATEGORIES.map((category) => `<button type="button" data-life-category="${category}" class="${state.lifeCategory === category ? "active" : ""}">${category}</button>`).join("")}</div>
     <div class="list-meta"><span>当前显示 ${filtered.length} 笔</span><span>${state.lifeCategory === "全部" ? "全部生活支出" : `${state.lifeCategory}类支出`}</span></div>
     ${filtered.length ? `<div class="expense-list">${filtered.map(expenseCard).join("")}</div>` : `<div class="empty-state"><p>还没有${state.lifeCategory === "全部" ? "生活支出" : `${state.lifeCategory}类支出`}<br /><small>点击右下角＋记录第一笔</small></p></div>`}
@@ -343,13 +368,12 @@ function lifeView() {
 }
 
 function brandRow() {
-  const years = [...new Set([new Date().getFullYear(), ...state.records.map(yearOf)])].sort((a, b) => b - a);
   return `
     <div class="brand-row">
       <img class="brand-logo" src="../assets/brand/wanwu_full_logo_light.png" alt="玩物不丧志" />
       <div class="brand-actions">
         <select class="year-select" id="yearSelect" aria-label="选择年份">
-          ${years.map((year) => `<option value="${year}" ${year === state.selectedYear ? "selected" : ""}>${year} 年</option>`).join("")}
+          ${yearOptions(state.records, state.selectedYear)}
         </select>
         <button class="notice-btn" type="button" aria-label="通知"><i data-lucide="bell"></i><span class="notice-dot"></span></button>
       </div>
@@ -375,7 +399,17 @@ function dashboardView() {
     </section>`;
   }
 
-  const records = allRecords.filter((record) => yearOf(record) === state.selectedYear);
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const yearRecords = state.selectedYear === "all"
+    ? allRecords
+    : allRecords.filter((record) => yearOf(record) === state.selectedYear);
+  const monthYear = state.selectedYear === "all" ? currentYear : state.selectedYear;
+  const monthRecords = allRecords.filter((record) => (
+    yearOf(record) === monthYear
+    && Number(String(record.date || "").slice(5, 7)) === currentMonth
+  ));
+  const records = state.dashboardPeriod === "month" ? monthRecords : yearRecords;
   const totalPaid = records.reduce((sum, record) => sum + paidAmount(record), 0);
   const count = records.reduce((sum, record) => sum + quantity(record), 0);
   const preorders = records.filter((record) => record.status === "预定中");
@@ -383,25 +417,28 @@ function dashboardView() {
   const arrivalPending = preorders.filter((record) => record.preorderStage === "arrival" || dueAmount(record) <= 0);
   const due = preorders.reduce((sum, record) => sum + dueAmount(record), 0);
   const months = Array.from({ length: 12 }, (_, index) => {
-    const items = records.filter((record) => Number(String(record.date || "").slice(5, 7)) === index + 1);
+    const items = yearRecords.filter((record) => Number(String(record.date || "").slice(5, 7)) === index + 1);
     return items.reduce((sum, record) => sum + paidAmount(record), 0);
   });
   const maxMonth = Math.max(...months, 1);
-  const currentMonth = new Date().getFullYear() === state.selectedYear ? new Date().getMonth() + 1 : 12;
   const recent = [...records].sort((a, b) => String(b.date || "").localeCompare(String(a.date || ""))).slice(0, 3);
   const recentImage = recent.map(getRecordImage).find(Boolean);
+  const reportTitle = state.dashboardPeriod === "month"
+    ? `${monthYear} 年 ${String(currentMonth).padStart(2, "0")} 月收藏投入`
+    : state.selectedYear === "all" ? "全部年份收藏投入" : `${state.selectedYear} 年收藏投入`;
+  const countLabel = state.dashboardPeriod === "month" ? "本月新增" : state.selectedYear === "all" ? "全部新增" : "本年新增";
   return `<section class="page">
     ${brandRow()}
     <div class="annual-card">
       <p class="eyebrow">ANNUAL ACQUISITION REPORT</p>
-      <div class="annual-toggle"><button class="active" type="button">全年</button><button type="button">本月</button></div>
-      <h3>${state.selectedYear} 年收藏投入</h3>
+      <div class="annual-toggle"><button data-dashboard-period="year" class="${state.dashboardPeriod === "year" ? "active" : ""}" type="button">全年</button><button data-dashboard-period="month" class="${state.dashboardPeriod === "month" ? "active" : ""}" type="button">本月</button></div>
+      <h3>${reportTitle}</h3>
       <p class="annual-amount"><small>¥</small><strong>${formatMoney(totalPaid)}</strong></p>
       <p class="annual-meta">新增 ${count} 件&nbsp; · &nbsp;当前 ${preorders.length} 项待办</p>
       ${recentImage ? `<div class="annual-thumb"><img src="${escapeHtml(recentImage)}" alt="最近收藏" /><span>最近收藏</span></div>` : ""}
     </div>
     <div class="stat-grid">
-      <div class="stat-card"><p>本年新增</p><strong>${count}</strong> 件<small>${count - preorders.length} 已入库 · ${preorders.length} 预定</small></div>
+      <div class="stat-card"><p>${countLabel}</p><strong>${count}</strong> 件<small>${count - preorders.length} 已入库 · ${preorders.length} 预定</small></div>
       <div class="stat-card"><p>当前待补款</p><strong>${paymentPending.length}</strong> 件<small>¥${formatMoney(due)} 待支付</small></div>
       <div class="stat-card"><p>当前待到货</p><strong>${arrivalPending.length}</strong> 件<small>查看到货进度</small></div>
     </div>
@@ -608,7 +645,11 @@ function bindRecordCards() {
 
 function bindCommonButtons() {
   content.querySelectorAll("[data-go]").forEach((button) => button.addEventListener("click", () => navigate(button.dataset.go)));
-  content.querySelector("#yearSelect")?.addEventListener("change", (event) => { state.selectedYear = Number(event.target.value); render(); });
+  content.querySelector("#yearSelect")?.addEventListener("change", (event) => { state.selectedYear = selectedYearValue(event.target.value); render(); });
+  content.querySelectorAll("[data-dashboard-period]").forEach((button) => button.addEventListener("click", () => {
+    state.dashboardPeriod = button.dataset.dashboardPeriod;
+    render();
+  }));
   bindRecordCards();
 }
 
@@ -630,7 +671,7 @@ function bindCollectionEvents() {
 
 function bindLifeEvents() {
   content.querySelector("#lifeYearSelect")?.addEventListener("change", (event) => {
-    state.lifeYear = Number(event.target.value);
+    state.lifeYear = selectedYearValue(event.target.value);
     render();
   });
   content.querySelectorAll("[data-life-period]").forEach((button) => button.addEventListener("click", () => {
@@ -982,9 +1023,9 @@ async function importBackupFile(file) {
     }
 
     const collectionYears = state.records.map(yearOf).filter(Number.isFinite);
-    state.selectedYear = collectionYears.length ? Math.max(...collectionYears) : new Date().getFullYear();
+    state.selectedYear = collectionYears.length ? "all" : new Date().getFullYear();
     const lifeYears = state.lifeRecords.map((record) => Number(String(record.date || "").slice(0, 4))).filter(Number.isFinite);
-    state.lifeYear = lifeYears.length ? Math.max(...lifeYears) : new Date().getFullYear();
+    state.lifeYear = lifeYears.length ? "all" : new Date().getFullYear();
     showToast(`导入完成：${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
     render();
   } catch (error) {
@@ -1044,9 +1085,9 @@ function restorePreviousData() {
     addCollectionBackup("恢复上版");
     backupAllData("恢复上版");
     const collectionYears = state.records.map(yearOf).filter(Number.isFinite);
-    state.selectedYear = collectionYears.length ? Math.max(...collectionYears) : new Date().getFullYear();
+    state.selectedYear = collectionYears.length ? "all" : new Date().getFullYear();
     const lifeYears = state.lifeRecords.map((record) => Number(String(record.date || "").slice(0, 4))).filter(Number.isFinite);
-    state.lifeYear = lifeYears.length ? Math.max(...lifeYears) : new Date().getFullYear();
+    state.lifeYear = lifeYears.length ? "all" : new Date().getFullYear();
     showToast(`已恢复上版：${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
     render();
   } catch {
