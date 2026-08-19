@@ -7,13 +7,11 @@ const FULL_BACKUP_KEY = "wanwu-full-data-backups-v1";
 const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
 const COMPRESSED_IMAGE_MAX_BYTES = 180 * 1024;
 const COMPRESSED_IMAGE_MAX_SIDE = 1280;
-const ROUTES = ["life", "dashboard", "collection", "catalog", "discover", "profile", "add", "life-add"];
+const ROUTES = ["life", "dashboard", "collection", "profile", "add", "life-add"];
 const TITLES = {
   life: "生活记账",
   dashboard: "总览",
   collection: "收藏库",
-  catalog: "模型图鉴",
-  discover: "发现",
   profile: "我的",
   add: "新增收藏",
   "life-add": "新增支出",
@@ -47,14 +45,9 @@ const state = {
   collectionStatus: "全部",
   collectionCategory: "全部分类",
   collectionView: "list",
-  catalog: [],
-  catalogSearch: "",
-  news: [],
-  newsSearch: "",
   editingId: "",
   editingExpenseId: "",
   addReturnRoute: "collection",
-  prefill: null,
   uploadImage: "",
   lifeUploadImage: "",
   profile: { username: "本地镜像", authenticated: true },
@@ -268,7 +261,6 @@ function navigate(route, options = {}) {
   if (route === "add") {
     state.addReturnRoute = state.route === "add" ? state.addReturnRoute : state.route;
     state.editingId = options.editingId || "";
-    state.prefill = options.prefill || null;
     state.uploadImage = options.imageUrl || "";
   }
   if (route === "life-add") {
@@ -393,8 +385,7 @@ function dashboardView() {
         <h2>建立第一份收藏</h2>
         <div class="onboarding-progress"></div>
         <div class="onboarding-actions">
-          <button class="primary" type="button" data-go="catalog">从图鉴添加</button>
-          <button type="button" data-go="add">直接录入</button>
+          <button class="primary" type="button" data-go="add">添加第一件收藏</button>
         </div>
         <div class="ready-row"><b>账号已就绪</b><span>下一步 · 添加收藏</span></div>
       </div>
@@ -491,34 +482,6 @@ function collectionView() {
   </section>`;
 }
 
-function catalogView() {
-  const search = state.catalogSearch.trim().toLowerCase();
-  const items = state.catalog.filter((item) => !search || `${item.name || ""} ${item.brand || ""} ${item.series || ""} ${item.ip || ""} ${item.modelNumber || ""}`.toLowerCase().includes(search)).slice(0, 30);
-  return `<section class="page">
-    <div class="catalog-hero"><p class="eyebrow">MODEL CATALOG</p><h2>模型图鉴</h2><p>按名称、编号、厂牌和玩家常用叫法查找模型资料。</p></div>
-    <div class="catalog-stats"><div><strong>${state.catalog.length ? "3.5万+" : "—"}</strong>图鉴条目</div><div><strong>${state.records.length}</strong>我的收藏</div><div><strong>${new Set(state.records.map((item) => item.category)).size}</strong>收藏分类</div></div>
-    <label class="search-box"><i data-lucide="search"></i><input id="catalogSearch" value="${escapeHtml(state.catalogSearch)}" placeholder="搜索名称 / 编号 / 厂牌 / IP" /></label>
-    ${state.catalog.length ? `<div class="catalog-grid">${items.map((item) => `
-      <article class="catalog-card">
-        <div class="catalog-cover">${item.coverImage ? `<img src="${escapeHtml(normalizeAssetUrl(item.coverImage))}" alt="${escapeHtml(item.name)}" loading="lazy" />` : ""}</div>
-        <div class="catalog-info"><span class="catalog-tag">${escapeHtml(item.ip || item.displayCategory || "模型")}</span><h3>${escapeHtml(item.name || "未命名图鉴")}</h3><p>${escapeHtml([item.brand, item.series, item.modelNumber].filter(Boolean).join(" · "))}</p><button type="button" data-catalog-add="${escapeHtml(item.id)}">加入收藏</button></div>
-      </article>`).join("")}</div>` : `<div class="empty-state"><p>正在读取图鉴资料…</p></div>`}
-  </section>`;
-}
-
-function discoverView() {
-  const search = state.newsSearch.trim().toLowerCase();
-  const items = state.news.filter((item) => !search || `${item.title || ""} ${item.sourceName || ""} ${item.summary || ""}`.toLowerCase().includes(search)).slice(0, 20);
-  return `<section class="page">
-    <div class="discover-hero"><p class="eyebrow">TOY INTELLIGENCE</p><h2>玩具情报中心</h2><p>整理模型新品、预定和补款动态，帮你把零散消息变成可查的收藏资料。</p></div>
-    <label class="search-box"><i data-lucide="search"></i><input id="newsSearch" value="${escapeHtml(state.newsSearch)}" placeholder="搜索资讯标题 / 来源" /></label>
-    ${items.length ? `<div class="news-list">${items.map((item) => {
-      const image = normalizeAssetUrl((item.imageUrls || [])[0] || item.imageUrl || "");
-      return `<article class="news-card"><div class="news-cover">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy" referrerpolicy="no-referrer" />` : ""}<span class="news-badge">${item.category === "payment" ? "补款" : item.category === "new" ? "新品" : "预定"}</span></div><div class="news-body"><h3>${escapeHtml(item.title || "玩具情报")}</h3><p>${escapeHtml(item.summary || item.body || "")}</p><div class="news-meta"><span>${escapeHtml(item.sourceName || "玩物不丧志")}</span><time>${escapeHtml(String(item.publishedAt || item.createdAt || "").slice(0, 10))}</time></div></div></article>`;
-    }).join("")}</div>` : `<div class="empty-state"><p>${state.news.length ? "没有匹配的资讯" : "正在读取玩具情报…"}</p></div>`}
-  </section>`;
-}
-
 function profileView() {
   const count = state.records.reduce((sum, record) => sum + quantity(record), 0);
   const yearCount = state.records.filter((record) => yearOf(record) === new Date().getFullYear()).reduce((sum, record) => sum + quantity(record), 0);
@@ -560,17 +523,12 @@ function todayValue() {
 
 function addView() {
   const existing = state.records.find((record) => String(record.id) === String(state.editingId));
-  const source = existing || state.prefill || {};
+  const source = existing || {};
   if (!state.uploadImage) state.uploadImage = source.imageUrl || source.catalogCoverImage || "";
   const category = source.category || "高达模型";
   const status = source.status || "已入库";
   const image = normalizeAssetUrl(state.uploadImage);
   return `<form class="page form-page" id="collectionForm">
-    <section class="form-section">
-      <p class="eyebrow">CATALOG LINK</p><h2 class="form-title">关联图鉴 <small>可选</small></h2>
-      <div class="catalog-link-row"><input id="catalogLinkQuery" type="search" placeholder="搜索图鉴名称、型号或系列" value="${escapeHtml(source.catalogName || "")}" /><button id="catalogLinkSearch" type="button">搜索</button></div>
-      <div class="catalog-suggestions" id="catalogSuggestions"></div>
-    </section>
     <section class="form-section">
       <p class="eyebrow">COLLECTION DETAILS</p><h2 class="form-title">藏品资料</h2>
       <label class="field"><span>藏品名称<b>*</b></span><input name="name" required maxlength="80" value="${escapeHtml(source.name || "")}" placeholder="例如：MGEX 强袭自由高达" /></label>
@@ -586,7 +544,7 @@ function addView() {
     </section>
     <section class="form-section"><p class="eyebrow">PRIVATE NOTE</p><h2 class="form-title">收藏备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="缺件、存放位置、版本状态…">${escapeHtml(source.note || "")}</textarea></label></section>
     <section class="form-section"><p class="eyebrow">PRODUCT IMAGE</p><h2 class="form-title">产品图片 <small>可选</small></h2>
-      <div class="image-uploader"><div class="image-preview" id="imagePreview">${image ? `<img src="${escapeHtml(image)}" alt="产品图预览" />` : `<b>＋</b><span>产品图</span>`}</div><div class="image-actions"><button id="chooseImage" type="button">上传图片</button><button id="autoImage" class="alt" type="button">自动找图</button></div></div>
+      <div class="image-uploader"><div class="image-preview" id="imagePreview">${image ? `<img src="${escapeHtml(image)}" alt="产品图预览" />` : `<b>＋</b><span>产品图</span>`}</div><div class="image-actions"><button id="chooseImage" type="button">上传图片</button><button id="clearImage" class="alt" type="button">移除图片</button></div></div>
       <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="uploadNote">原图不超过 5MB，上传时自动压缩为 WebP。</p>
     </section>
     ${existing ? `<button class="delete-record" id="deleteRecord" type="button">删除这条收藏</button>` : ""}
@@ -630,7 +588,7 @@ function render() {
   }
   floatingAdd.hidden = !["life", "dashboard", "collection"].includes(state.route);
   tabbar.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.route === state.route));
-  const views = { life: lifeView, dashboard: dashboardView, collection: collectionView, catalog: catalogView, discover: discoverView, profile: profileView, add: addView, "life-add": lifeAddView };
+  const views = { life: lifeView, dashboard: dashboardView, collection: collectionView, profile: profileView, add: addView, "life-add": lifeAddView };
   content.innerHTML = views[state.route]();
   content.scrollTop = 0;
   bindViewEvents();
@@ -703,38 +661,6 @@ function bindLifeEvents() {
   });
 }
 
-function bindCatalogEvents() {
-  const search = content.querySelector("#catalogSearch");
-  search?.addEventListener("input", (event) => {
-    state.catalogSearch = event.target.value;
-    clearTimeout(bindCatalogEvents.searchTimer);
-    bindCatalogEvents.searchTimer = setTimeout(render, 160);
-  });
-  content.querySelectorAll("[data-catalog-add]").forEach((button) => button.addEventListener("click", () => {
-    const item = state.catalog.find((entry) => String(entry.id) === button.dataset.catalogAdd);
-    if (!item) return;
-    navigate("add", { prefill: {
-      name: item.name,
-      category: /兵人|人偶/.test(item.displayCategory || item.category || "") ? "兵人/人偶" : "高达模型",
-      series: [item.brand, item.series, item.modelNumber].filter(Boolean).join(" / "),
-      price: Number(item.priceRmb || item.price || 0),
-      catalogId: item.id,
-      catalogName: item.name,
-      catalogCoverImage: item.coverImage,
-      imageUrl: item.coverImage,
-    }, imageUrl: item.coverImage });
-  }));
-}
-
-function bindDiscoverEvents() {
-  const search = content.querySelector("#newsSearch");
-  search?.addEventListener("input", (event) => {
-    state.newsSearch = event.target.value;
-    clearTimeout(bindDiscoverEvents.searchTimer);
-    bindDiscoverEvents.searchTimer = setTimeout(render, 160);
-  });
-}
-
 function formatFileSize(bytes) {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))}KB` : `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
@@ -798,31 +724,6 @@ function updateLifeFormImage(url, message = "") {
   if (note && message) note.textContent = message;
 }
 
-function catalogMatches(query) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return [];
-  return state.catalog.filter((item) => `${item.name || ""} ${item.modelNumber || ""} ${item.brand || ""} ${item.series || ""}`.toLowerCase().includes(normalized)).slice(0, 4);
-}
-
-function renderCatalogSuggestions(query) {
-  const target = content.querySelector("#catalogSuggestions");
-  if (!target) return;
-  const matches = catalogMatches(query);
-  target.innerHTML = matches.map((item) => `<button class="catalog-suggestion" type="button" data-link-catalog="${escapeHtml(item.id)}">${item.coverImage ? `<img src="${escapeHtml(normalizeAssetUrl(item.coverImage))}" alt="" />` : ""}<span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml([item.brand, item.series, item.modelNumber].filter(Boolean).join(" · "))}</small></span></button>`).join("") || `<small class="muted">没有找到匹配图鉴，可继续手动填写。</small>`;
-  target.querySelectorAll("[data-link-catalog]").forEach((button) => button.addEventListener("click", () => {
-    const item = state.catalog.find((entry) => String(entry.id) === button.dataset.linkCatalog);
-    if (!item) return;
-    const form = content.querySelector("#collectionForm");
-    form.elements.name.value = item.name || "";
-    form.elements.series.value = [item.brand, item.series, item.modelNumber].filter(Boolean).join(" / ");
-    if (Number(item.priceRmb || item.price)) form.elements.price.value = Number(item.priceRmb || item.price);
-    form.dataset.catalogId = item.id || "";
-    updateFormImage(item.coverImage || "", "已关联图鉴产品图，可继续上传替换。");
-    target.innerHTML = "";
-    showToast("已带入图鉴资料");
-  }));
-}
-
 function bindAddEvents() {
   const form = content.querySelector("#collectionForm");
   if (!form) return;
@@ -834,10 +735,6 @@ function bindAddEvents() {
     form.elements.status.value = button.dataset.formStatus;
     content.querySelectorAll("[data-form-status]").forEach((item) => item.classList.toggle("active", item === button));
   }));
-  content.querySelector("#catalogLinkSearch")?.addEventListener("click", () => renderCatalogSuggestions(content.querySelector("#catalogLinkQuery").value));
-  content.querySelector("#catalogLinkQuery")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") { event.preventDefault(); renderCatalogSuggestions(event.target.value); }
-  });
   content.querySelector("#chooseImage")?.addEventListener("click", () => content.querySelector("#imageFile")?.click());
   content.querySelector("#imageFile")?.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
@@ -853,12 +750,8 @@ function bindAddEvents() {
       showToast("图片压缩完成");
     } catch (error) { showToast(error.message || "图片处理失败"); }
   });
-  content.querySelector("#autoImage")?.addEventListener("click", () => {
-    const query = `${form.elements.name.value} ${form.elements.series.value}`.trim();
-    const match = catalogMatches(query)[0] || catalogMatches(form.elements.name.value)[0];
-    if (!match?.coverImage) return showToast("暂未找到匹配图片，可从图鉴搜索关联");
-    updateFormImage(match.coverImage, "已自动匹配图鉴产品图。");
-    showToast("已找到产品图");
+  content.querySelector("#clearImage")?.addEventListener("click", () => {
+    updateFormImage("", "产品图片已移除，可重新上传。");
   });
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -882,14 +775,13 @@ function bindAddEvents() {
       date: String(data.get("date") || todayValue()),
       note: String(data.get("note") || "").trim(),
       imageUrl: state.uploadImage || "",
-      catalogId: form.dataset.catalogId || existing?.catalogId || "",
+      catalogId: existing?.catalogId || "",
       updatedAt: new Date().toISOString(),
     };
     if (existing) state.records = state.records.map((record) => String(record.id) === String(existing.id) ? next : record);
     else state.records.unshift(next);
     if (!saveRecords(existing ? "修改收藏" : "新增收藏")) return;
     state.editingId = "";
-    state.prefill = null;
     state.uploadImage = "";
     showToast(existing ? "收藏已更新" : "收藏已保存");
     navigate(state.addReturnRoute === "life" ? "life" : "collection");
@@ -1154,23 +1046,17 @@ function bindViewEvents() {
   bindCommonButtons();
   if (state.route === "life") bindLifeEvents();
   if (state.route === "collection") bindCollectionEvents();
-  if (state.route === "catalog") bindCatalogEvents();
-  if (state.route === "discover") bindDiscoverEvents();
   if (state.route === "profile") bindProfileEvents();
   if (state.route === "add") bindAddEvents();
   if (state.route === "life-add") bindLifeAddEvents();
 }
 
-async function hydrateSnapshots() {
-  const [catalogResult, newsResult, sessionResult] = await Promise.allSettled([
-    fetch("../api-snapshots/app-catalog.json").then((response) => response.json()),
-    fetch("../api-snapshots/news.json").then((response) => response.json()),
-    fetch("../api-snapshots/app-session.json").then((response) => response.json()),
-  ]);
-  if (catalogResult.status === "fulfilled") state.catalog = catalogResult.value.items || [];
-  if (newsResult.status === "fulfilled") state.news = newsResult.value.items || newsResult.value.articles || [];
-  if (sessionResult.status === "fulfilled" && sessionResult.value.user) state.profile = { ...sessionResult.value.user, authenticated: sessionResult.value.authenticated };
-  if (["catalog", "discover", "profile"].includes(state.route)) render();
+async function hydrateProfileSnapshot() {
+  try {
+    const session = await fetch("../api-snapshots/app-session.json").then((response) => response.json());
+    if (session.user) state.profile = { ...session.user, authenticated: session.authenticated };
+    if (state.route === "profile") render();
+  } catch {}
 }
 
 tabbar.addEventListener("click", (event) => {
@@ -1181,7 +1067,6 @@ floatingAdd.addEventListener("click", () => navigate(state.route === "life" ? "l
 headerBack.addEventListener("click", () => {
   state.editingId = "";
   state.editingExpenseId = "";
-  state.prefill = null;
   state.uploadImage = "";
   state.lifeUploadImage = "";
   navigate(state.addReturnRoute || "collection");
@@ -1199,4 +1084,4 @@ state.selectedYear = [...new Set([new Date().getFullYear(), ...state.records.map
 backupAllData("初始快照");
 if (!location.hash) history.replaceState(null, "", "#/dashboard");
 render();
-hydrateSnapshots();
+hydrateProfileSnapshot();
