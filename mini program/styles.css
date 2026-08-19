@@ -316,7 +316,7 @@ img { display: block; max-width: 100%; }
 .segment { display: grid; grid-template-columns: repeat(4, 1fr); margin: 8px 0 12px; padding: 3px; border: 1px solid #d5d1cb; border-radius: 7px; background: #edeae4; }
 .segment button { height: 35px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 800; }
 .segment button.active { background: #151210; color: #fff; }
-.life-segment { grid-template-columns: repeat(6, 1fr); }
+.life-segment { grid-template-columns: repeat(7, 1fr); }
 .life-segment button { padding: 0 2px; font-size: 12px; }
 .filter-row { display: flex; align-items: center; gap: 7px; margin: 9px 0 12px; overflow-x: auto; scrollbar-width: none; }
 .filter-row::-webkit-scrollbar { display: none; }
@@ -467,7 +467,7 @@ img { display: block; max-width: 100%; }
 .quick-categories { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 7px; }
 .quick-categories button { height: 35px; border: 0; border-radius: 5px; background: #f1efeb; font-size: 12px; font-weight: 750; }
 .quick-categories button.active { background: #171411; color: #fff; }
-.life-category-picks { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.life-category-picks { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .status-segment { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border: 1px solid #d3cfc8; border-radius: 7px; background: #ebe8e2; }
 .status-segment button { height: 40px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 850; }
 .status-segment button.active { background: #151210; color: #fff; }

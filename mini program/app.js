@@ -19,7 +19,8 @@ const TITLES = {
   "life-add": "新增支出",
 };
 const CATEGORIES = ["全部分类", "高达模型", "机娘", "兵人/人偶", "变形金刚", "其他"];
-const LIFE_CATEGORIES = ["全部", "衣", "食", "住", "行", "收藏"];
+const LIFE_CATEGORIES = ["全部", "衣", "食", "住", "行", "玩", "收藏"];
+const LIFE_EXPENSE_CATEGORIES = LIFE_CATEGORIES.slice(1);
 
 const shell = document.querySelector("#phoneShell");
 const content = document.querySelector("#pageContent");
@@ -145,6 +146,7 @@ function buildDataArchive() {
     records: structuredClone(state.records),
     backups: structuredClone(getCollectionBackups()),
     lifeRecords: structuredClone(state.lifeRecords),
+    lifeCategories: [...LIFE_EXPENSE_CATEGORIES],
   };
 }
 
@@ -319,7 +321,7 @@ function allLifeExpenses() {
 
 function expenseCard(expense) {
   const image = normalizeAssetUrl(expense.imageUrl || "");
-  const icon = { "衣": "shirt", "食": "utensils", "住": "house", "行": "car-front", "收藏": "package" }[expense.category] || "receipt-text";
+  const icon = { "衣": "shirt", "食": "utensils", "住": "house", "行": "car-front", "玩": "gamepad-2", "收藏": "package" }[expense.category] || "receipt-text";
   return `<article class="expense-card" data-expense-id="${escapeHtml(expense.id)}" data-expense-source="${escapeHtml(expense.sourceType || "life")}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(expense.name)}">
     <div class="expense-icon ${expense.category === "收藏" ? "collection" : ""}">${image ? `<img src="${escapeHtml(image)}" alt="" />` : `<i data-lucide="${icon}"></i>`}</div>
     <div class="expense-main"><h3>${escapeHtml(expense.name || "生活支出")}</h3><p>${escapeHtml(expense.category || "其他")} · ${escapeHtml(expense.note || (expense.sourceType === "collection" ? "由收藏记录自动同步" : "生活记账"))}</p><time>${escapeHtml(formatDate(expense.date))}</time></div>
@@ -600,9 +602,9 @@ function lifeAddView() {
   return `<form class="page form-page" id="lifeExpenseForm">
     <section class="form-section">
       <p class="eyebrow">LIFE EXPENSE</p><h2 class="form-title">生活支出</h2>
-      <label class="field"><span>支出名称<b>*</b></span><input name="name" required maxlength="80" value="${escapeHtml(source.name || "")}" placeholder="例如：午餐、房租、地铁" /></label>
+      <label class="field"><span>支出名称<b>*</b></span><input name="name" required maxlength="80" value="${escapeHtml(source.name || "")}" placeholder="例如：午餐、房租、电影票" /></label>
       <label class="field"><span>支出分类<b>*</b></span><input type="hidden" name="category" value="${escapeHtml(category)}" /></label>
-      <div class="quick-categories life-category-picks">${LIFE_CATEGORIES.slice(1).map((item) => `<button type="button" data-life-pick="${item}" class="${item === category ? "active" : ""}">${item}</button>`).join("")}</div>
+      <div class="quick-categories life-category-picks">${LIFE_EXPENSE_CATEGORIES.map((item) => `<button type="button" data-life-pick="${item}" class="${item === category ? "active" : ""}">${item}</button>`).join("")}</div>
       <div class="form-two"><label class="field"><span>金额（人民币）<b>*</b></span><input name="amount" type="number" min="0.01" step="0.01" required value="${Number(source.amount || 0) || ""}" placeholder="0" /></label><label class="field"><span>支出日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label></div>
     </section>
     <section class="form-section"><p class="eyebrow">EXPENSE NOTE</p><h2 class="form-title">支出备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="用途、付款方式、同行人…">${escapeHtml(source.note || "")}</textarea></label></section>
@@ -936,7 +938,7 @@ function bindLifeAddEvents() {
     const category = String(data.get("category") || "").trim();
     const amount = Number(data.get("amount") || 0);
     if (!name) return showToast("请填写支出名称");
-    if (!LIFE_CATEGORIES.slice(1).includes(category)) return showToast("请选择支出分类");
+    if (!LIFE_EXPENSE_CATEGORIES.includes(category)) return showToast("请选择支出分类");
     if (!Number.isFinite(amount) || amount <= 0) return showToast("请填写正确的支出金额");
     const existing = state.lifeRecords.find((record) => String(record.id) === String(state.editingExpenseId));
     const next = {
@@ -976,7 +978,14 @@ function isValidImportedRecord(record) {
 }
 
 function isValidImportedExpense(record) {
-  return Boolean(record && record.id && record.name && record.category && record.date && Number.isFinite(Number(record.amount)));
+  return Boolean(
+    record
+    && record.id
+    && record.name
+    && LIFE_EXPENSE_CATEGORIES.includes(record.category)
+    && record.date
+    && Number.isFinite(Number(record.amount))
+  );
 }
 
 function persistAllData(records, lifeRecords, reason) {
