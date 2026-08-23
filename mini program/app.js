@@ -1185,6 +1185,7 @@ function bindProfileEvents() {
 }
 
 function startWallLoading() {
+  releaseWallImage();
   state.wallLoading = true;
   state.wallGenerated = false;
   render();
@@ -1194,10 +1195,20 @@ function loadWallImage(url) {
   return new Promise((resolve) => {
     if (!url) return resolve(null);
     const image = new Image();
+    image.decoding = "async";
     image.onload = () => resolve(image);
     image.onerror = () => resolve(null);
     image.src = new URL(url, location.href).href;
   });
+}
+
+function releaseWallImage() {
+  if (String(state.wallImageUrl || "").startsWith("blob:")) URL.revokeObjectURL(state.wallImageUrl);
+  state.wallImageUrl = "";
+}
+
+function nextPaint() {
+  return new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 }
 
 function drawCover(context, image, x, y, width, height) {
@@ -1272,30 +1283,40 @@ async function createCollectionWallImage() {
     while (value.length > 1 && context.measureText(value).width > maxWidth) value = `${value.slice(0, -2)}…`;
     return value;
   };
-  const images = await Promise.all(records.map((record) => loadWallImage(getRecordImage(record))));
-  images.forEach((image, index) => {
-    const x = padding + (index % columns) * (tile + gap);
-    const y = 278 + Math.floor(index / columns) * (cardHeight + gap);
-    context.fillStyle = "#fff";
-    context.fillRect(x, y, tile, cardHeight);
-    context.fillStyle = "#e4e0d8";
-    context.fillRect(x + 3, y + 3, imageSize, imageSize);
-    if (image) drawCover(context, image, x + 3, y + 3, imageSize, imageSize);
-    else {
-      context.fillStyle = "#aaa198";
-      context.font = "42px sans-serif";
-      context.textAlign = "center";
-      context.fillText("◇", x + tile / 2, y + 66);
-      context.textAlign = "left";
-    }
-    context.fillStyle = "#11100f";
-    context.font = "700 13px sans-serif";
-    context.fillText(`▪ ${ellipsis(records[index].name, tile - 12)}`, x + 5, y + 132);
-    context.fillStyle = "#746e65";
-    context.font = "12px sans-serif";
-    context.fillText(`¥${formatMoney(recordPrice(records[index]))}`, x + 5, y + 153);
+  const batchSize = 4;
+  for (let start = 0; start < records.length; start += batchSize) {
+    const batch = records.slice(start, start + batchSize);
+    const images = await Promise.all(batch.map((record) => loadWallImage(getRecordImage(record))));
+    images.forEach((image, batchIndex) => {
+      const index = start + batchIndex;
+      const x = padding + (index % columns) * (tile + gap);
+      const y = 278 + Math.floor(index / columns) * (cardHeight + gap);
+      context.fillStyle = "#fff";
+      context.fillRect(x, y, tile, cardHeight);
+      context.fillStyle = "#e4e0d8";
+      context.fillRect(x + 3, y + 3, imageSize, imageSize);
+      if (image?.naturalWidth && image?.naturalHeight) drawCover(context, image, x + 3, y + 3, imageSize, imageSize);
+      else {
+        context.fillStyle = "#aaa198";
+        context.font = "42px sans-serif";
+        context.textAlign = "center";
+        context.fillText("◇", x + tile / 2, y + 66);
+        context.textAlign = "left";
+      }
+      context.fillStyle = "#11100f";
+      context.font = "700 13px sans-serif";
+      context.fillText(`▪ ${ellipsis(records[index].name, tile - 12)}`, x + 5, y + 132);
+      context.fillStyle = "#746e65";
+      context.font = "12px sans-serif";
+      context.fillText(`¥${formatMoney(recordPrice(records[index]))}`, x + 5, y + 153);
+      if (image) image.src = "";
+    });
+    await nextPaint();
+  }
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("image encode failed")), "image/png");
   });
-  return canvas.toDataURL("image/png");
+  return URL.createObjectURL(blob);
 }
 
 async function saveCollectionWall() {
@@ -1312,13 +1333,13 @@ function bindCollectionWallEvents() {
   content.querySelector("#wallYear")?.addEventListener("change", (event) => {
     state.wallYear = event.target.value;
     state.wallGenerated = false;
-    state.wallImageUrl = "";
+    releaseWallImage();
     render();
   });
   content.querySelector("#wallCategory")?.addEventListener("change", (event) => {
     state.wallCategory = event.target.value;
     state.wallGenerated = false;
-    state.wallImageUrl = "";
+    releaseWallImage();
     render();
   });
   content.querySelector("#generateWall")?.addEventListener("click", startWallLoading);
@@ -1357,6 +1378,10 @@ function bindCollectionWallEvents() {
       if (progressCount) progressCount.textContent = `${covers} / ${records.length} 张封面就位`;
       if (checked >= records.length) {
         window.clearInterval(bindCollectionWallEvents.progressTimer);
+        const loadingText = content.querySelector("#wallLoadingText");
+        const progressCount = content.querySelector("#wallProgressCount");
+        if (loadingText) loadingText.textContent = `封面检查完成，正在合成收藏墙图片…`;
+        if (progressCount) progressCount.textContent = `已就位 ${covers} 张封面`;
         window.setTimeout(async () => {
           if (state.route !== "collection-wall") return;
           try {
