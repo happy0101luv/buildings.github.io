@@ -4,15 +4,17 @@ const BACKUP_KEY = "hangar07-backups-v1:本地镜像";
 const PENDING_SYNC_KEY = "hangar07-pending-sync-v1:本地镜像";
 const LIFE_STORAGE_KEY = "wanwu-life-expenses-v1";
 const FULL_BACKUP_KEY = "wanwu-full-data-backups-v1";
+const STORAGE_COMPACTED_KEY = "wanwu-storage-compacted-v2";
 const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
 const COMPRESSED_IMAGE_MAX_BYTES = 180 * 1024;
 const COMPRESSED_IMAGE_MAX_SIDE = 1280;
-const ROUTES = ["life", "dashboard", "collection", "profile", "add", "life-add"];
+const ROUTES = ["life", "dashboard", "collection", "profile", "collection-wall", "add", "life-add"];
 const TITLES = {
   life: "生活记账",
   dashboard: "总览",
   collection: "收藏库",
   profile: "我的",
+  "collection-wall": "我的收藏墙",
   add: "新增收藏",
   "life-add": "新增支出",
 };
@@ -50,6 +52,11 @@ const state = {
   addReturnRoute: "collection",
   uploadImage: "",
   lifeUploadImage: "",
+  wallYear: "all",
+  wallCategory: "全部分类",
+  wallLoading: false,
+  wallGenerated: false,
+  wallImageUrl: "",
   profile: { username: "本地镜像", authenticated: true },
 };
 
@@ -58,10 +65,13 @@ function safeParse(value, fallback) {
 }
 
 function loadRecords() {
-  const scoped = safeParse(localStorage.getItem(SCOPED_STORAGE_KEY), null);
-  const plain = safeParse(localStorage.getItem(STORAGE_KEY), null);
-  if (Array.isArray(scoped) && (scoped.length || !Array.isArray(plain))) return scoped;
-  return Array.isArray(plain) ? plain : Array.isArray(scoped) ? scoped : [];
+  const scopedPayload = localStorage.getItem(SCOPED_STORAGE_KEY);
+  if (scopedPayload !== null) {
+    const scoped = safeParse(scopedPayload, []);
+    return Array.isArray(scoped) ? scoped : [];
+  }
+  const legacy = safeParse(localStorage.getItem(STORAGE_KEY), []);
+  return Array.isArray(legacy) ? legacy : [];
 }
 
 function loadLifeRecords() {
@@ -84,7 +94,7 @@ function saveRecords(reason = "资料更新") {
   const payload = JSON.stringify(state.records);
   try {
     localStorage.setItem(SCOPED_STORAGE_KEY, payload);
-    localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ records: state.records, reason, savedAt: new Date().toISOString() }));
+    localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ records: imageLightRecords(state.records), reason, savedAt: new Date().toISOString() }));
     backupAllData(reason);
     return true;
   } catch (error) {
@@ -202,10 +212,41 @@ function recordPrice(record) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function compactLegacyStorageOnce() {
+  if (localStorage.getItem(STORAGE_COMPACTED_KEY) === "1") return;
+  try {
+    const lightRecords = imageLightRecords(state.records);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(lightRecords));
+    const pending = safeParse(localStorage.getItem(PENDING_SYNC_KEY), null);
+    if (pending?.records) {
+      localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ ...pending, records: lightRecords }));
+    }
+    localStorage.setItem(STORAGE_COMPACTED_KEY, "1");
+  } catch {}
+}
+
+function soldPrice(record) {
+  const value = Number(record.soldPrice ?? 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function saleProfit(record) {
+  return soldPrice(record) - recordPrice(record);
+}
+
+function signedMoney(value) {
+  const amount = Number(value || 0);
+  return `${amount > 0 ? "+" : amount < 0 ? "-" : ""}¥${formatMoney(Math.abs(amount))}`;
+}
+
+function profitClass(value) {
+  return value > 0 ? "profit" : value < 0 ? "loss" : "even";
+}
+
 function paidAmount(record) {
   const paid = Number(record.paid);
   if (Number.isFinite(paid)) return paid;
-  return record.status === "已入库" ? recordPrice(record) : 0;
+  return ["已入库", "已卖出"].includes(record.status) ? recordPrice(record) : 0;
 }
 
 function dueAmount(record) {
@@ -258,6 +299,12 @@ function currentRoute() {
 
 function navigate(route, options = {}) {
   if (!ROUTES.includes(route)) return;
+  if (route === "collection-wall") {
+    state.addReturnRoute = "profile";
+    state.wallLoading = false;
+    state.wallGenerated = false;
+    state.wallImageUrl = "";
+  }
   if (route === "add") {
     state.addReturnRoute = state.route === "add" ? state.addReturnRoute : state.route;
     state.editingId = options.editingId || "";
@@ -276,10 +323,15 @@ function navigate(route, options = {}) {
 function recordCard(record) {
   const image = getRecordImage(record);
   const price = recordPrice(record);
+  const isSold = record.status === "已卖出";
+  const profit = isSold ? saleProfit(record) : 0;
+  const sideValue = isSold
+    ? `<strong class="sale-result ${profitClass(profit)}" aria-label="售出盈亏">${signedMoney(profit)}</strong>`
+    : `<strong>¥${formatMoney(price)}</strong>`;
   return `
     <article class="record-card" data-record-id="${escapeHtml(record.id)}" tabindex="0" role="button" aria-label="编辑 ${escapeHtml(record.name)}">
       <div class="record-image">
-        ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(record.name)}" loading="lazy" />` : `<i data-lucide="package-open"></i>`}
+        ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(record.name)}" loading="lazy" decoding="async" />` : `<i data-lucide="package-open"></i>`}
       </div>
       <div class="record-main">
         <h3>${escapeHtml(record.name || "未命名收藏")}</h3>
@@ -287,10 +339,54 @@ function recordCard(record) {
         <time>${record.status === "预定中" ? "预定于" : "入库于"} ${escapeHtml(formatDate(record.date))}</time>
       </div>
       <div class="record-side">
-        <span class="status-badge${record.status === "预定中" ? " preorder" : ""}">${escapeHtml(record.status || "已入库")}</span>
-        <strong>¥${formatMoney(price)}</strong>
+        <span class="status-badge${record.status === "预定中" ? " preorder" : isSold ? " sold" : ""}">${escapeHtml(record.status || "已入库")}</span>
+        ${sideValue}
       </div>
     </article>`;
+}
+
+function showcaseItem(record) {
+  const image = getRecordImage(record);
+  return `
+    <article class="showcase-item" data-record-id="${escapeHtml(record.id)}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(record.name || "未命名收藏")}" title="${escapeHtml(record.name || "未命名收藏")}">
+      ${image
+        ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(record.name || "藏品图片")}" loading="lazy" decoding="async" />`
+        : `<span class="showcase-placeholder"><i data-lucide="package-open"></i></span>`}
+    </article>`;
+}
+
+function wallRecords() {
+  return state.records.filter((record) => (
+    record.status !== "已卖出"
+    &&
+    (state.wallYear === "all" || yearOf(record) === Number(state.wallYear))
+    && (state.wallCategory === "全部分类" || record.category === state.wallCategory)
+  ));
+}
+
+function collectionWallView() {
+  const records = wallRecords();
+  const availableRecords = state.records.filter((record) => record.status !== "已卖出");
+  const years = [...new Set(availableRecords.map(yearOf))].sort((a, b) => b - a);
+  const categories = [...new Set(availableRecords.map((record) => record.category || "其他"))];
+  const totalValue = records.reduce((sum, record) => sum + recordPrice(record), 0);
+  const totalPieces = records.reduce((sum, record) => sum + quantity(record), 0);
+  const preorderCount = records.filter((record) => record.status === "预定中").length;
+  const loading = state.wallLoading;
+  return `<section class="page wall-page">
+    <div class="wall-intro"><p class="eyebrow">THE COLLECTION WALL</p><h2>把喜欢的东西，<b>一件件留下来</b></h2><p>${escapeHtml(state.profile.username || "收藏家")} 的收藏记录 · ${records.length} 件</p></div>
+    <div class="wall-filters">
+      <label><select id="wallYear"><option value="all">全部年份</option>${years.map((year) => `<option value="${year}" ${Number(state.wallYear) === year ? "selected" : ""}>${year} 年</option>`).join("")}</select></label>
+      <label><select id="wallCategory"><option value="全部分类">全部分类</option>${categories.map((category) => `<option value="${escapeHtml(category)}" ${state.wallCategory === category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}</select></label>
+    </div>
+    ${!state.wallGenerated ? `<div class="wall-loader${loading ? " is-loading" : " is-idle"}">
+      <div class="loader-shelf"><b class="loader-hook"></b><span></span><span></span><span></span><span></span><i></i><span></span><span></span><span></span><i></i></div>
+      <h3>搬运藏品图片</h3><p id="wallLoadingText">已检查 0/${records.length} 件，0 张封面可以上墙</p>
+      <div class="loader-track"><b id="wallProgressBar"></b><em id="wallProgressCart">玩</em></div><div class="loader-meta"><strong id="wallProgressPercent">0%</strong><span id="wallProgressCount">0 / ${records.length} 张封面就位</span></div>
+    </div>
+    <button class="generate-wall" id="generateWall" type="button" ${loading || !records.length ? "disabled" : ""}><i data-lucide="sparkles"></i>${loading ? "正在生成…" : "生成收藏墙"}</button>` : `<button class="wall-image-preview" id="openWallImage" type="button" aria-label="打开收藏墙图片"><img src="${state.wallImageUrl}" alt="生成的收藏墙长图" /></button>
+    <button class="save-wall" id="saveWall" type="button" ${records.length ? "" : "disabled"}><i data-lucide="download"></i>保存长图</button>`}
+  </section>`;
 }
 
 function allLifeExpenses() {
@@ -315,7 +411,7 @@ function expenseCard(expense) {
   const image = normalizeAssetUrl(expense.imageUrl || "");
   const icon = { "衣": "shirt", "食": "utensils", "住": "house", "行": "car-front", "玩": "gamepad-2", "收藏": "package" }[expense.category] || "receipt-text";
   return `<article class="expense-card" data-expense-id="${escapeHtml(expense.id)}" data-expense-source="${escapeHtml(expense.sourceType || "life")}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(expense.name)}">
-    <div class="expense-icon ${expense.category === "收藏" ? "collection" : ""}">${image ? `<img src="${escapeHtml(image)}" alt="" />` : `<i data-lucide="${icon}"></i>`}</div>
+    <div class="expense-icon ${expense.category === "收藏" ? "collection" : ""}">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy" decoding="async" />` : `<i data-lucide="${icon}"></i>`}</div>
     <div class="expense-main"><h3>${escapeHtml(expense.name || "生活支出")}</h3><p>${escapeHtml(expense.category || "其他")} · ${escapeHtml(expense.note || (expense.sourceType === "collection" ? "由收藏记录自动同步" : "生活记账"))}</p><time>${escapeHtml(formatDate(expense.date))}</time></div>
     <div class="expense-amount"><strong>-¥${formatMoney(expense.amount)}</strong>${expense.sourceType === "collection" ? `<span>收藏同步</span>` : `<span>${escapeHtml(expense.category)}</span>`}</div>
   </article>`;
@@ -451,6 +547,10 @@ function collectionView() {
   const totalCount = state.records.reduce((sum, record) => sum + quantity(record), 0);
   const totalPaid = state.records.reduce((sum, record) => sum + paidAmount(record), 0);
   const totalDue = state.records.reduce((sum, record) => sum + dueAmount(record), 0);
+  const realizedProfit = state.records
+    .filter((record) => record.status === "已卖出")
+    .reduce((sum, record) => sum + saleProfit(record), 0);
+  const netInvestment = totalPaid - realizedProfit;
   const preorders = state.records.filter((record) => record.status === "预定中");
   const paymentPending = preorders.filter((record) => record.preorderStage !== "arrival" && dueAmount(record) > 0);
   const arrivalPending = preorders.filter((record) => record.preorderStage === "arrival" || dueAmount(record) <= 0);
@@ -459,6 +559,7 @@ function collectionView() {
     const matchesSearch = !search || `${record.name || ""} ${record.series || ""} ${record.category || ""} ${record.note || ""}`.toLowerCase().includes(search);
     const matchesStatus = state.collectionStatus === "全部"
       || (state.collectionStatus === "已入库" && record.status === "已入库")
+      || (state.collectionStatus === "已卖出" && record.status === "已卖出")
       || (state.collectionStatus === "待补款" && record.status === "预定中" && record.preorderStage !== "arrival" && dueAmount(record) > 0)
       || (state.collectionStatus === "待到货" && record.status === "预定中" && (record.preorderStage === "arrival" || dueAmount(record) <= 0));
     const matchesCategory = state.collectionCategory === "全部分类" || record.category === state.collectionCategory;
@@ -470,15 +571,15 @@ function collectionView() {
       <p class="eyebrow">COLLECTION INVESTMENT</p><span class="investment-pill">全部收藏投入</span>
       <div class="big-money"><b>¥</b>${formatMoney(totalPaid)}</div>
       <p>${totalCount} 件藏品&nbsp; · &nbsp;${paymentPending.length} 待补款&nbsp; · &nbsp;${arrivalPending.length} 待到货</p>
-      <div class="investment-split"><div>已付金额<strong>¥${formatMoney(totalPaid)}</strong></div><div>待补款<strong>¥${formatMoney(totalDue)}</strong></div></div>
+      <div class="investment-split collection-investment-split"><div>已付金额<strong>¥${formatMoney(totalPaid)}</strong></div><div>售出盈亏<strong class="${profitClass(realizedProfit)}">${signedMoney(realizedProfit)}</strong></div><div>净投入<strong>¥${formatMoney(netInvestment)}</strong></div></div>
     </div>
     <label class="search-box collection-search"><i data-lucide="search"></i><input id="collectionSearch" value="${escapeHtml(state.collectionSearch)}" placeholder="搜索藏品 / 厂牌 / 分类 / 备注" /></label>
     <div class="segment" id="statusSegment">
-      ${["全部", "已入库", "待补款", "待到货"].map((item) => `<button type="button" data-status="${item}" class="${state.collectionStatus === item || (item === "已入库" && state.collectionStatus === "已入库") ? "active" : ""}">${item}</button>`).join("")}
+      ${["全部", "已入库", "已卖出", "待补款", "待到货"].map((item) => `<button type="button" data-status="${item}" class="${state.collectionStatus === item ? "active" : ""}">${item}</button>`).join("")}
     </div>
     <div class="filter-row"><span class="filter-label">分类</span>${CATEGORIES.map((category) => `<button class="chip ${state.collectionCategory === category ? "active" : ""}" type="button" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}<button class="chip" id="manageCategories" type="button">管理</button></div>
     <div class="list-meta"><span>当前显示 ${filtered.length} 件</span><div class="view-switch"><button type="button" data-list-view="list" class="${state.collectionView === "list" ? "active" : ""}">清单</button><button type="button" data-list-view="grid" class="${state.collectionView === "grid" ? "active" : ""}">展柜</button></div></div>
-    ${filtered.length ? `<div class="record-list ${state.collectionView}">${filtered.map(recordCard).join("")}</div>` : `<div class="empty-state"><p>没有匹配的藏品</p></div>`}
+    ${filtered.length ? `<div class="record-list ${state.collectionView}">${filtered.map(state.collectionView === "grid" ? showcaseItem : recordCard).join("")}</div>` : `<div class="empty-state"><p>没有匹配的藏品</p></div>`}
   </section>`;
 }
 
@@ -492,7 +593,7 @@ function profileView() {
   return `<section class="page">
     <div class="profile-head"><div class="avatar">${escapeHtml(username.slice(0, 1))}</div><div class="profile-name"><h2>${escapeHtml(username)} <span class="login-badge">已登录</span></h2><p>收藏数据已保存在当前设备</p></div><button class="avatar-action" type="button">更换头像 ›</button></div>
     <p class="profile-section-title">收藏画像</p>
-    <div class="collection-portrait"><p class="eyebrow">MY COLLECTION</p><h3>${escapeHtml(count ? `${favorite}收藏者` : "等待第一件收藏")}</h3><p>${count ? `最常收藏 ${favorite}` : "从第一件藏品开始生成收藏画像"}</p><div class="portrait-stats"><div><strong>${count}</strong><span>件收藏</span></div><div><strong>${yearCount}</strong><span>今年新增</span></div><div><strong>${preorders}</strong><span>仍在预定</span></div></div><div class="portrait-link" data-go="collection" role="button" tabindex="0">打开收藏库 <b>›</b></div></div>
+    <div class="collection-portrait"><p class="eyebrow">MY COLLECTION</p><h3>${escapeHtml(count ? `${favorite}收藏者` : "等待第一件收藏")}</h3><p>${count ? `最常收藏 ${favorite}` : "从第一件藏品开始生成收藏画像"}</p><div class="portrait-stats"><div><strong>${count}</strong><span>件收藏</span></div><div><strong>${yearCount}</strong><span>今年新增</span></div><div><strong>${preorders}</strong><span>仍在预定</span></div></div><div class="portrait-actions"><div class="portrait-link" data-go="collection" role="button" tabindex="0">打开收藏库 <b>›</b></div><button type="button" data-go="collection-wall">生成收藏墙</button></div></div>
     <p class="profile-section-title">购买计划</p>
     <div class="wish-card"><div class="wish-card-top"><p class="eyebrow">WISH BOARD</p><h3>愿望清单</h3><p>收好每一个想入手的玩具</p></div><div class="wish-card-foot"><span>0 件愿望</span><b>查看愿望画板 ›</b></div></div>
     <p class="profile-section-title">参与共建</p>
@@ -538,7 +639,7 @@ function addView() {
     </section>
     <section class="form-section">
       <p class="eyebrow">PURCHASE STATUS</p><h2 class="form-title">购买状态</h2>
-      <label class="field"><span>收藏状态</span><input type="hidden" name="status" value="${escapeHtml(status)}" /><div class="status-segment"><button type="button" data-form-status="已入库" class="${status === "已入库" ? "active" : ""}">已入库</button><button type="button" data-form-status="预定中" class="${status === "预定中" ? "active" : ""}">预定中</button></div></label>
+      <label class="field"><span>收藏状态</span><input type="hidden" name="status" value="${escapeHtml(status)}" /><div class="status-segment"><button type="button" data-form-status="已入库" class="${status === "已入库" || status === "已卖出" ? "active" : ""}">已入库</button><button type="button" data-form-status="预定中" class="${status === "预定中" ? "active" : ""}">预定中</button></div></label>
       <div class="form-two"><label class="field"><span>数量</span><input name="quantity" type="number" min="1" step="1" value="${quantity(source)}" /></label><label class="field"><span>总价（人民币）</span><input name="price" type="number" min="0" step="0.01" value="${recordPrice(source) || ""}" placeholder="0" /></label></div>
       <label class="field"><span>购买 / 预定日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label>
     </section>
@@ -547,6 +648,11 @@ function addView() {
       <div class="image-uploader"><div class="image-preview" id="imagePreview">${image ? `<img src="${escapeHtml(image)}" alt="产品图预览" />` : `<b>＋</b><span>产品图</span>`}</div><div class="image-actions"><button id="chooseImage" type="button">上传图片</button><button id="clearImage" class="alt" type="button">移除图片</button></div></div>
       <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="uploadNote">原图不超过 5MB，上传时自动压缩为 WebP。</p>
     </section>
+    ${existing ? `<section class="sale-editor" id="saleEditor" ${status === "预定中" ? "hidden" : ""}>
+      <div class="sale-editor-head"><div><p class="eyebrow">SALE STATUS</p><h2 class="form-title">出售藏品</h2></div><span>仅已有收藏可标记</span></div>
+      <div class="sale-status-segment"><button type="button" data-sale-status="已入库" class="${status !== "已卖出" ? "active" : ""}">仍在收藏</button><button type="button" data-sale-status="已卖出" class="${status === "已卖出" ? "active" : ""}">已卖出</button></div>
+      <div id="saleFields" ${status === "已卖出" ? "" : "hidden"}><label class="field"><span>售出价格（人民币）<b>*</b></span><input name="soldPrice" type="number" min="0" step="0.01" value="${source.soldPrice ?? ""}" placeholder="请输入实际售出总价" ${status === "已卖出" ? "required" : ""} /></label><p class="sale-hint">保存后自动按“售出价格 − 收藏总价”计算盈亏</p></div>
+    </section>` : ""}
     ${existing ? `<button class="delete-record" id="deleteRecord" type="button">删除这条收藏</button>` : ""}
   </form>`;
 }
@@ -576,10 +682,12 @@ function lifeAddView() {
 
 function render() {
   state.route = currentRoute();
-  pageTitle.textContent = TITLES[state.route];
+  pageTitle.textContent = state.route === "add" && state.editingId ? "修改收藏" : TITLES[state.route];
   const formMode = state.route === "add" || state.route === "life-add";
+  const wallMode = state.route === "collection-wall";
   shell.classList.toggle("form-mode", formMode);
-  headerBack.hidden = !formMode;
+  shell.classList.toggle("wall-mode", wallMode);
+  headerBack.hidden = !formMode && !wallMode;
   formSaveBar.hidden = !formMode;
   if (formMode) {
     const lifeMode = state.route === "life-add";
@@ -588,7 +696,7 @@ function render() {
   }
   floatingAdd.hidden = !["life", "dashboard", "collection"].includes(state.route);
   tabbar.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.route === state.route));
-  const views = { life: lifeView, dashboard: dashboardView, collection: collectionView, profile: profileView, add: addView, "life-add": lifeAddView };
+  const views = { life: lifeView, dashboard: dashboardView, collection: collectionView, profile: profileView, "collection-wall": collectionWallView, add: addView, "life-add": lifeAddView };
   content.innerHTML = views[state.route]();
   content.scrollTop = 0;
   bindViewEvents();
@@ -734,6 +842,26 @@ function bindAddEvents() {
   content.querySelectorAll("[data-form-status]").forEach((button) => button.addEventListener("click", () => {
     form.elements.status.value = button.dataset.formStatus;
     content.querySelectorAll("[data-form-status]").forEach((item) => item.classList.toggle("active", item === button));
+    const saleFields = content.querySelector("#saleFields");
+    const soldPriceInput = form.elements.soldPrice;
+    if (saleFields) saleFields.hidden = true;
+    if (soldPriceInput) soldPriceInput.required = false;
+    const saleEditor = content.querySelector("#saleEditor");
+    if (saleEditor) saleEditor.hidden = button.dataset.formStatus === "预定中";
+    content.querySelectorAll("[data-sale-status]").forEach((item) => item.classList.toggle("active", item.dataset.saleStatus === "已入库"));
+  }));
+  content.querySelectorAll("[data-sale-status]").forEach((button) => button.addEventListener("click", () => {
+    const isSold = button.dataset.saleStatus === "已卖出";
+    form.elements.status.value = button.dataset.saleStatus;
+    content.querySelectorAll("[data-sale-status]").forEach((item) => item.classList.toggle("active", item === button));
+    content.querySelectorAll("[data-form-status]").forEach((item) => item.classList.toggle("active", item.dataset.formStatus === "已入库"));
+    const saleFields = content.querySelector("#saleFields");
+    const soldPriceInput = form.elements.soldPrice;
+    if (saleFields) saleFields.hidden = !isSold;
+    if (soldPriceInput) {
+      soldPriceInput.required = isSold;
+      if (isSold) soldPriceInput.focus();
+    }
   }));
   content.querySelector("#chooseImage")?.addEventListener("click", () => content.querySelector("#imageFile")?.click());
   content.querySelector("#imageFile")?.addEventListener("change", async (event) => {
@@ -762,6 +890,8 @@ function bindAddEvents() {
     const existing = state.records.find((record) => String(record.id) === String(state.editingId));
     const status = String(data.get("status") || "已入库");
     const price = Math.max(0, Number(data.get("price") || 0));
+    const saleAmount = Math.max(0, Number(data.get("soldPrice") || 0));
+    if (status === "已卖出" && !String(data.get("soldPrice") || "").trim()) return showToast("请填写卖出价格");
     const next = {
       ...(existing || {}),
       id: existing?.id || (crypto.randomUUID?.() || `local-${Date.now()}`),
@@ -771,7 +901,8 @@ function bindAddEvents() {
       status,
       quantity: Math.max(1, Math.floor(Number(data.get("quantity") || 1))),
       price,
-      paid: status === "已入库" ? price : Number(existing?.paid || 0),
+      paid: ["已入库", "已卖出"].includes(status) ? price : Number(existing?.paid || 0),
+      soldPrice: status === "已卖出" ? saleAmount : null,
       date: String(data.get("date") || todayValue()),
       note: String(data.get("note") || "").trim(),
       imageUrl: state.uploadImage || "",
@@ -881,10 +1012,12 @@ function isValidImportedExpense(record) {
 }
 
 function persistAllData(records, lifeRecords, reason) {
-  localStorage.setItem(SCOPED_STORAGE_KEY, JSON.stringify(records));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  const recordsPayload = JSON.stringify(records);
+  const lightRecords = imageLightRecords(records);
+  localStorage.setItem(SCOPED_STORAGE_KEY, recordsPayload);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(lightRecords));
   localStorage.setItem(LIFE_STORAGE_KEY, JSON.stringify(lifeRecords));
-  localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ records, reason, savedAt: new Date().toISOString() }));
+  localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ records: lightRecords, reason, savedAt: new Date().toISOString() }));
 }
 
 async function importBackupFile(file) {
@@ -1042,11 +1175,204 @@ function bindProfileEvents() {
   });
 }
 
+function startWallLoading() {
+  state.wallLoading = true;
+  state.wallGenerated = false;
+  render();
+}
+
+function loadWallImage(url) {
+  return new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = new URL(url, location.href).href;
+  });
+}
+
+function drawCover(context, image, x, y, width, height) {
+  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+  const sourceWidth = width / scale;
+  const sourceHeight = height / scale;
+  const sourceX = (image.naturalWidth - sourceWidth) / 2;
+  const sourceY = (image.naturalHeight - sourceHeight) / 2;
+  context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+}
+
+async function createCollectionWallImage() {
+  const records = wallRecords();
+  if (!records.length) return "";
+  const columns = 8;
+  const gap = 10;
+  const padding = 36;
+  const tile = 116;
+  const imageSize = 110;
+  const cardHeight = 166;
+  const rows = Math.ceil(records.length / columns);
+  const width = 1080;
+  const height = 310 + rows * (cardHeight + gap);
+  const totalValue = records.reduce((sum, record) => sum + recordPrice(record), 0);
+  const totalPieces = records.reduce((sum, record) => sum + quantity(record), 0);
+  const preorderCount = records.filter((record) => record.status === "预定中").length;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#f3f0e9";
+  context.fillRect(0, 0, width, height);
+  context.fillStyle = "#c9272d";
+  context.fillRect(22, 20, width - 44, 14);
+  context.font = "700 18px sans-serif";
+  context.fillText("WANWU COLLECTION ARCHIVE", padding, 72);
+  context.fillStyle = "#11100f";
+  context.font = "900 34px sans-serif";
+  context.fillText("这面墙，花了", padding, 122);
+  context.fillStyle = "#c9272d";
+  context.font = "900 52px sans-serif";
+  context.fillText(`¥${formatMoney(totalValue)}`, padding, 180);
+  context.fillStyle = "#746e65";
+  context.font = "17px sans-serif";
+  context.fillText(`藏品总价值 ¥${formatMoney(totalValue)}`, padding, 211);
+  context.textAlign = "right";
+  context.fillText(`${state.profile.username || "收藏家"} · ${records.length} 件收藏`, width - padding, 71);
+  context.textAlign = "left";
+  const statValues = [totalPieces, records.length, preorderCount];
+  const statLabels = ["件玩具", "条收藏记录", "件还在路上"];
+  statValues.forEach((value, index) => {
+    const x = 660 + index * 125;
+    context.fillStyle = "#11100f";
+    context.font = "900 42px sans-serif";
+    context.textAlign = "center";
+    context.fillText(String(value), x, 135);
+    context.fillStyle = "#746e65";
+    context.font = "15px sans-serif";
+    context.fillText(statLabels[index], x, 165);
+    if (index < 2) {
+      context.fillStyle = "#d4cfc7";
+      context.fillRect(x + 61, 96, 1, 82);
+    }
+  });
+  context.textAlign = "left";
+  context.fillStyle = "#11100f";
+  context.fillRect(padding, 236, width - padding * 2, 2);
+  context.font = "15px sans-serif";
+  context.fillText("我的玩具阵列 · COLLECTION INDEX", padding, 263);
+  const ellipsis = (textValue, maxWidth) => {
+    let value = String(textValue || "未命名收藏");
+    while (value.length > 1 && context.measureText(value).width > maxWidth) value = `${value.slice(0, -2)}…`;
+    return value;
+  };
+  const images = await Promise.all(records.map((record) => loadWallImage(getRecordImage(record))));
+  images.forEach((image, index) => {
+    const x = padding + (index % columns) * (tile + gap);
+    const y = 278 + Math.floor(index / columns) * (cardHeight + gap);
+    context.fillStyle = "#fff";
+    context.fillRect(x, y, tile, cardHeight);
+    context.fillStyle = "#e4e0d8";
+    context.fillRect(x + 3, y + 3, imageSize, imageSize);
+    if (image) drawCover(context, image, x + 3, y + 3, imageSize, imageSize);
+    else {
+      context.fillStyle = "#aaa198";
+      context.font = "42px sans-serif";
+      context.textAlign = "center";
+      context.fillText("◇", x + tile / 2, y + 66);
+      context.textAlign = "left";
+    }
+    context.fillStyle = "#11100f";
+    context.font = "700 13px sans-serif";
+    context.fillText(`▪ ${ellipsis(records[index].name, tile - 12)}`, x + 5, y + 132);
+    context.fillStyle = "#746e65";
+    context.font = "12px sans-serif";
+    context.fillText(`¥${formatMoney(recordPrice(records[index]))}`, x + 5, y + 153);
+  });
+  return canvas.toDataURL("image/png");
+}
+
+async function saveCollectionWall() {
+  const imageUrl = state.wallImageUrl || await createCollectionWallImage();
+  if (!imageUrl) return showToast("当前没有可保存的收藏");
+  const link = document.createElement("a");
+  link.download = `我的收藏墙-${new Date().toISOString().slice(0, 10)}.png`;
+  link.href = imageUrl;
+  link.click();
+  showToast("收藏墙长图已保存");
+}
+
+function bindCollectionWallEvents() {
+  content.querySelector("#wallYear")?.addEventListener("change", (event) => {
+    state.wallYear = event.target.value;
+    state.wallGenerated = false;
+    state.wallImageUrl = "";
+    render();
+  });
+  content.querySelector("#wallCategory")?.addEventListener("change", (event) => {
+    state.wallCategory = event.target.value;
+    state.wallGenerated = false;
+    state.wallImageUrl = "";
+    render();
+  });
+  content.querySelector("#generateWall")?.addEventListener("click", startWallLoading);
+  content.querySelector("#openWallImage")?.addEventListener("click", () => {
+    if (state.wallImageUrl) window.open(state.wallImageUrl, "_blank", "noopener,noreferrer");
+  });
+  content.querySelector("#saveWall")?.addEventListener("click", async (event) => {
+    event.currentTarget.disabled = true;
+    event.currentTarget.textContent = "正在生成长图…";
+    try { await saveCollectionWall(); }
+    catch { showToast("长图生成失败，请稍后重试"); }
+    finally {
+      event.currentTarget.disabled = false;
+      event.currentTarget.innerHTML = '<i data-lucide="download"></i>保存长图';
+      window.lucide?.createIcons?.();
+    }
+  });
+  if (state.wallLoading) {
+    const records = wallRecords();
+    let checked = 0;
+    window.clearInterval(bindCollectionWallEvents.progressTimer);
+    bindCollectionWallEvents.progressTimer = window.setInterval(() => {
+      if (state.route !== "collection-wall") return window.clearInterval(bindCollectionWallEvents.progressTimer);
+      checked = Math.min(records.length, checked + Math.max(1, Math.ceil(records.length / 22)));
+      const covers = records.slice(0, checked).filter(getRecordImage).length;
+      const percent = records.length ? Math.round(checked / records.length * 100) : 100;
+      const loadingText = content.querySelector("#wallLoadingText");
+      const progressBar = content.querySelector("#wallProgressBar");
+      const progressCart = content.querySelector("#wallProgressCart");
+      const progressPercent = content.querySelector("#wallProgressPercent");
+      const progressCount = content.querySelector("#wallProgressCount");
+      if (loadingText) loadingText.textContent = `已检查 ${checked}/${records.length} 件，${covers} 张封面可以上墙`;
+      if (progressBar) progressBar.style.width = `${percent}%`;
+      if (progressCart) progressCart.style.left = `${Math.max(1, percent - 4)}%`;
+      if (progressPercent) progressPercent.textContent = `${percent}%`;
+      if (progressCount) progressCount.textContent = `${covers} / ${records.length} 张封面就位`;
+      if (checked >= records.length) {
+        window.clearInterval(bindCollectionWallEvents.progressTimer);
+        window.setTimeout(async () => {
+          if (state.route !== "collection-wall") return;
+          try {
+            state.wallImageUrl = await createCollectionWallImage();
+            state.wallGenerated = Boolean(state.wallImageUrl);
+          } catch {
+            state.wallImageUrl = "";
+            state.wallGenerated = false;
+            showToast("收藏墙图片生成失败，请重试");
+          } finally {
+            state.wallLoading = false;
+            render();
+          }
+        }, 180);
+      }
+    }, records.length ? 125 : 500);
+  }
+}
+
 function bindViewEvents() {
   bindCommonButtons();
   if (state.route === "life") bindLifeEvents();
   if (state.route === "collection") bindCollectionEvents();
   if (state.route === "profile") bindProfileEvents();
+  if (state.route === "collection-wall") bindCollectionWallEvents();
   if (state.route === "add") bindAddEvents();
   if (state.route === "life-add") bindLifeAddEvents();
 }
@@ -1081,7 +1407,8 @@ content.addEventListener("scroll", () => {
 state.records = loadRecords();
 state.lifeRecords = loadLifeRecords();
 state.selectedYear = [...new Set([new Date().getFullYear(), ...state.records.map(yearOf)])].sort((a, b) => b - a)[0];
-backupAllData("初始快照");
 if (!location.hash) history.replaceState(null, "", "#/dashboard");
 render();
 hydrateProfileSnapshot();
+if ("requestIdleCallback" in window) window.requestIdleCallback(compactLegacyStorageOnce, { timeout: 3000 });
+else window.setTimeout(compactLegacyStorageOnce, 1200);
