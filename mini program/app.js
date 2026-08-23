@@ -399,6 +399,9 @@ function allLifeExpenses() {
       sourceType: "collection",
       name: record.name || "收藏支出",
       category: "收藏",
+      displayCategory: record.category || "其他",
+      collectionStatus: record.status || "已入库",
+      saleResult: record.status === "已卖出" ? saleProfit(record) : null,
       amount: paidAmount(record),
       date: record.date || record.createdAt || todayValue(),
       note: [record.category, record.series].filter(Boolean).join(" · "),
@@ -410,10 +413,16 @@ function allLifeExpenses() {
 function expenseCard(expense) {
   const image = normalizeAssetUrl(expense.imageUrl || "");
   const icon = { "衣": "shirt", "食": "utensils", "住": "house", "行": "car-front", "玩": "gamepad-2", "收藏": "package" }[expense.category] || "receipt-text";
+  const isCollection = expense.sourceType === "collection";
+  const isSold = isCollection && expense.collectionStatus === "已卖出";
+  const collectionValue = isSold ? Number(expense.saleResult || 0) : Number(expense.amount || 0);
+  const amountMarkup = isCollection
+    ? `<div class="expense-amount collection-value"><span>${escapeHtml(expense.displayCategory || "其他")}</span><strong class="${isSold ? profitClass(collectionValue) : "owned"}">${isSold ? signedMoney(collectionValue) : `¥${formatMoney(collectionValue)}`}</strong></div>`
+    : `<div class="expense-amount"><strong>-¥${formatMoney(expense.amount)}</strong><span>${escapeHtml(expense.category)}</span></div>`;
   return `<article class="expense-card" data-expense-id="${escapeHtml(expense.id)}" data-expense-source="${escapeHtml(expense.sourceType || "life")}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(expense.name)}">
     <div class="expense-icon ${expense.category === "收藏" ? "collection" : ""}">${image ? `<img src="${escapeHtml(image)}" alt="" loading="lazy" decoding="async" />` : `<i data-lucide="${icon}"></i>`}</div>
-    <div class="expense-main"><h3>${escapeHtml(expense.name || "生活支出")}</h3><p>${escapeHtml(expense.category || "其他")} · ${escapeHtml(expense.note || (expense.sourceType === "collection" ? "由收藏记录自动同步" : "生活记账"))}</p><time>${escapeHtml(formatDate(expense.date))}</time></div>
-    <div class="expense-amount"><strong>-¥${formatMoney(expense.amount)}</strong>${expense.sourceType === "collection" ? `<span>收藏同步</span>` : `<span>${escapeHtml(expense.category)}</span>`}</div>
+    <div class="expense-main"><h3>${escapeHtml(expense.name || "生活支出")}</h3><p>${isCollection ? escapeHtml(expense.note || expense.displayCategory || "收藏") : `${escapeHtml(expense.category || "其他")} · ${escapeHtml(expense.note || "生活记账")}`}</p><time>${escapeHtml(formatDate(expense.date))}</time></div>
+    ${amountMarkup}
   </article>`;
 }
 

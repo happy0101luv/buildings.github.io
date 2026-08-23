@@ -372,6 +372,12 @@ img { display: block; max-width: 100%; }
 .expense-amount { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; padding: 2px 0; }
 .expense-amount strong { color: var(--red); font-size: 14px; white-space: nowrap; }
 .expense-amount span { padding: 3px 6px; border-radius: 9px; background: #f0ede7; color: var(--muted); font-size: 8px; white-space: nowrap; }
+.expense-amount.collection-value { min-width: 72px; }
+.expense-amount.collection-value strong.owned { color: #111; }
+.expense-amount.collection-value strong.profit { color: var(--green); }
+.expense-amount.collection-value strong.loss { color: var(--red); }
+.expense-amount.collection-value strong.even { color: var(--muted); }
+.expense-amount.collection-value span { max-width: 82px; overflow: hidden; text-overflow: ellipsis; background: #f4f1eb; }
 
 .profile-head { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 4px 2px 13px; border-bottom: 1px solid var(--line); }
 .avatar { width: 48px; height: 48px; border: 1px solid #dbc8c4; border-radius: 50%; background: #f5e6e3; color: var(--red); display: grid; place-items: center; font-size: 20px; font-weight: 900; }
