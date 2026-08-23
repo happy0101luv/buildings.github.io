@@ -57,6 +57,9 @@ const state = {
   wallLoading: false,
   wallGenerated: false,
   wallImageUrl: "",
+  loadedImageIds: new Set(),
+  failedImageIds: new Set(),
+  retryFailedImages: false,
   profile: { username: "本地镜像", authenticated: true },
 };
 
@@ -331,7 +334,7 @@ function recordCard(record) {
   return `
     <article class="record-card" data-record-id="${escapeHtml(record.id)}" tabindex="0" role="button" aria-label="编辑 ${escapeHtml(record.name)}">
       <div class="record-image">
-        ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(record.name)}" loading="lazy" decoding="async" />` : `<i data-lucide="package-open"></i>`}
+        ${collectionImageMarkup(record, image, record.name)}
       </div>
       <div class="record-main">
         <h3>${escapeHtml(record.name || "未命名收藏")}</h3>
@@ -349,10 +352,16 @@ function showcaseItem(record) {
   const image = getRecordImage(record);
   return `
     <article class="showcase-item" data-record-id="${escapeHtml(record.id)}" tabindex="0" role="button" aria-label="查看 ${escapeHtml(record.name || "未命名收藏")}" title="${escapeHtml(record.name || "未命名收藏")}">
-      ${image
-        ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(record.name || "藏品图片")}" loading="lazy" decoding="async" />`
-        : `<span class="showcase-placeholder"><i data-lucide="package-open"></i></span>`}
+      ${image ? collectionImageMarkup(record, image, record.name || "藏品图片") : `<span class="showcase-placeholder"><i data-lucide="package-open"></i></span>`}
     </article>`;
+}
+
+function collectionImageMarkup(record, image, alt) {
+  if (!image) return `<i data-lucide="package-open"></i>`;
+  const imageId = String(record.id);
+  if (state.loadedImageIds.has(imageId)) return `<img class="loaded" src="${escapeHtml(image)}" alt="${escapeHtml(alt || "藏品图片")}" loading="lazy" decoding="async" />`;
+  if (state.failedImageIds.has(imageId) && !state.retryFailedImages) return `<i data-lucide="image-off"></i>`;
+  return `<img data-record-image data-image-id="${escapeHtml(imageId)}" data-src="${escapeHtml(image)}" alt="${escapeHtml(alt || "藏品图片")}" decoding="async" />`;
 }
 
 function wallRecords() {
@@ -588,6 +597,7 @@ function collectionView() {
     </div>
     <div class="filter-row"><span class="filter-label">分类</span>${CATEGORIES.map((category) => `<button class="chip ${state.collectionCategory === category ? "active" : ""}" type="button" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}<button class="chip" id="manageCategories" type="button">管理</button></div>
     <div class="list-meta"><span>当前显示 ${filtered.length} 件</span><div class="view-switch"><button type="button" data-list-view="list" class="${state.collectionView === "list" ? "active" : ""}">清单</button><button type="button" data-list-view="grid" class="${state.collectionView === "grid" ? "active" : ""}">展柜</button></div></div>
+    <div class="collection-image-progress" id="collectionImageProgress" hidden><div><span id="collectionImageProgressText">正在加载图片 0/0</span><b id="collectionImageProgressPercent">0%</b></div><i><em id="collectionImageProgressBar"></em></i></div>
     ${filtered.length ? `<div class="record-list ${state.collectionView}">${filtered.map(state.collectionView === "grid" ? showcaseItem : recordCard).join("")}</div>` : `<div class="empty-state"><p>没有匹配的藏品</p></div>`}
   </section>`;
 }
@@ -615,6 +625,7 @@ function profileView() {
         <button id="copyBackup" type="button"><i data-lucide="copy"></i><span>复制备份<small>复制完整 JSON</small></span></button>
         <button id="importBackup" type="button"><i data-lucide="upload"></i><span>导入数据<small>导入前自动备份</small></span></button>
         <button id="restorePrevious" type="button"><i data-lucide="history"></i><span>恢复上版<small>恢复最近历史版本</small></span></button>
+        <button id="reloadCollectionImages" type="button"><i data-lucide="refresh-cw"></i><span>重新加载图片<small>重试收藏封面</small></span></button>
       </div>
       <p class="data-backup-status">已自动保存 ${fullBackupCount()} 个版本 · 当前 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出</p>
       <input id="backupImportFile" type="file" accept="application/json,.json" hidden />
@@ -691,6 +702,7 @@ function lifeAddView() {
 
 function render() {
   state.route = currentRoute();
+  if (state.route !== "collection") startCollectionImageQueue.runToken += 1;
   pageTitle.textContent = state.route === "add" && state.editingId ? "修改收藏" : TITLES[state.route];
   const formMode = state.route === "add" || state.route === "life-add";
   const wallMode = state.route === "collection-wall";
@@ -744,7 +756,98 @@ function bindCollectionEvents() {
   content.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => { state.collectionCategory = button.dataset.category; render(); }));
   content.querySelectorAll("[data-list-view]").forEach((button) => button.addEventListener("click", () => { state.collectionView = button.dataset.listView; render(); }));
   content.querySelector("#manageCategories")?.addEventListener("click", () => showToast("分类会根据收藏记录自动整理"));
+  startCollectionImageQueue();
 }
+
+function startCollectionImageQueue() {
+  const images = [...content.querySelectorAll("img[data-record-image]")];
+  const progress = content.querySelector("#collectionImageProgress");
+  if (!progress || !images.length) return;
+  const runToken = ++startCollectionImageQueue.runToken;
+  const textElement = content.querySelector("#collectionImageProgressText");
+  const percentElement = content.querySelector("#collectionImageProgressPercent");
+  const barElement = content.querySelector("#collectionImageProgressBar");
+  let completed = 0;
+  let failed = 0;
+  const forceReload = Boolean(startCollectionImageQueue.forceReload);
+  startCollectionImageQueue.forceReload = false;
+  state.retryFailedImages = false;
+  progress.hidden = false;
+
+  const updateProgress = () => {
+    if (runToken !== startCollectionImageQueue.runToken) return;
+    const percent = Math.round(completed / images.length * 100);
+    if (textElement) textElement.textContent = completed >= images.length
+      ? (failed ? `图片处理完成，${failed} 张加载失败` : `图片已加载 ${completed}/${images.length}`)
+      : `正在加载图片 ${completed}/${images.length}`;
+    if (percentElement) percentElement.textContent = `${percent}%`;
+    if (barElement) barElement.style.width = `${percent}%`;
+    if (completed >= images.length) window.setTimeout(() => {
+      if (runToken === startCollectionImageQueue.runToken) {
+        progress.classList.add("complete");
+        window.lucide?.createIcons?.();
+      }
+    }, 500);
+  };
+
+  const loadOne = (image, retry = true) => new Promise((resolve) => {
+    let source = image.dataset.src;
+    if (!source) return resolve();
+    if (forceReload && !source.startsWith("data:") && !source.startsWith("blob:")) {
+      try {
+        const refreshedUrl = new URL(source, location.href);
+        refreshedUrl.searchParams.set("reload", String(Date.now()));
+        source = refreshedUrl.href;
+      } catch {}
+    }
+    let finished = false;
+    const finish = async (loaded) => {
+      if (finished) return;
+      finished = true;
+      image.onload = null;
+      image.onerror = null;
+      if (!loaded && retry) {
+        image.removeAttribute("src");
+        await new Promise((next) => setTimeout(next, 180));
+        return loadOne(image, false).then(resolve);
+      }
+      if (loaded) {
+        try { await image.decode?.(); } catch {}
+        state.loadedImageIds.add(String(image.dataset.imageId || ""));
+        state.failedImageIds.delete(String(image.dataset.imageId || ""));
+        image.classList.add("loaded");
+      } else {
+        failed += 1;
+        state.failedImageIds.add(String(image.dataset.imageId || ""));
+        state.loadedImageIds.delete(String(image.dataset.imageId || ""));
+        const holder = image.parentElement;
+        image.remove();
+        holder?.classList.add("image-load-failed");
+        if (holder) holder.innerHTML = '<i data-lucide="image-off"></i>';
+      }
+      resolve();
+    };
+    image.onload = () => finish(true);
+    image.onerror = () => finish(false);
+    image.src = source;
+    if (image.complete) finish(image.naturalWidth > 0);
+  });
+
+  let nextIndex = 0;
+  const worker = async () => {
+    while (runToken === startCollectionImageQueue.runToken && nextIndex < images.length) {
+      const image = images[nextIndex++];
+      await loadOne(image);
+      completed += 1;
+      updateProgress();
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  };
+  updateProgress();
+  Promise.all(Array.from({ length: Math.min(3, images.length) }, worker));
+}
+startCollectionImageQueue.runToken = 0;
+startCollectionImageQueue.forceReload = false;
 
 function bindLifeEvents() {
   content.querySelector("#lifeYearSelect")?.addEventListener("change", (event) => {
@@ -1056,6 +1159,8 @@ async function importBackupFile(file) {
     try {
       state.records = structuredClone(importedRecords);
       state.lifeRecords = structuredClone(importedLifeRecords);
+      state.loadedImageIds.clear();
+      state.failedImageIds.clear();
       persistAllData(state.records, state.lifeRecords, "导入恢复");
       addCollectionBackup("导入恢复");
     } catch (error) {
@@ -1158,6 +1263,14 @@ function bindProfileEvents() {
     if (file) await importBackupFile(file);
   });
   content.querySelector("#restorePrevious")?.addEventListener("click", restorePreviousData);
+  content.querySelector("#reloadCollectionImages")?.addEventListener("click", () => {
+    if (!state.failedImageIds.size) return showToast("当前没有加载失败的收藏图片");
+    startCollectionImageQueue.runToken += 1;
+    startCollectionImageQueue.forceReload = true;
+    state.retryFailedImages = true;
+    showToast(`正在重试 ${state.failedImageIds.size} 张失败图片`);
+    navigate("collection");
+  });
   content.querySelector("#clearTestData")?.addEventListener("click", () => {
     if (!state.records.length && !state.lifeRecords.length) return showToast("当前没有可清空的测试数据");
     if (!window.confirm("确定一键清空当前设备中的全部收藏与生活记账吗？清空前会自动保存本机备份。")) return;
@@ -1171,6 +1284,8 @@ function bindProfileEvents() {
       localStorage.removeItem(PENDING_SYNC_KEY);
       state.records = [];
       state.lifeRecords = [];
+      state.loadedImageIds.clear();
+      state.failedImageIds.clear();
       state.selectedYear = new Date().getFullYear();
       state.lifeYear = new Date().getFullYear();
       showToast("测试数据已清空");
