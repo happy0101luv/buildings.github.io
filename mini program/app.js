@@ -5,7 +5,6 @@ const PENDING_SYNC_KEY = "hangar07-pending-sync-v1:本地镜像";
 const LIFE_STORAGE_KEY = "wanwu-life-expenses-v1";
 const FULL_BACKUP_KEY = "wanwu-full-data-backups-v1";
 const STORAGE_COMPACTED_KEY = "wanwu-storage-compacted-v2";
-const MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024;
 const COMPRESSED_IMAGE_MAX_BYTES = 180 * 1024;
 const COMPRESSED_IMAGE_MAX_SIDE = 1280;
 const ROUTES = ["life", "dashboard", "collection", "profile", "collection-wall", "add", "life-add"];
@@ -668,7 +667,7 @@ function addView() {
     <section class="form-section"><p class="eyebrow">PRIVATE NOTE</p><h2 class="form-title">收藏备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="缺件、存放位置、版本状态…">${escapeHtml(source.note || "")}</textarea></label></section>
     <section class="form-section"><p class="eyebrow">PRODUCT IMAGE</p><h2 class="form-title">产品图片 <small>可选</small></h2>
       <div class="image-uploader"><div class="image-preview" id="imagePreview">${image ? `<img src="${escapeHtml(image)}" alt="产品图预览" />` : `<b>＋</b><span>产品图</span>`}</div><div class="image-actions"><button id="chooseImage" type="button">上传图片</button><button id="clearImage" class="alt" type="button">移除图片</button></div></div>
-      <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="uploadNote">原图不超过 5MB，上传时自动压缩为 WebP。</p>
+      <input id="imageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="uploadNote">上传后自动压缩为 WebP，较大图片会进行多轮压缩。</p>
     </section>
     ${existing ? `<section class="sale-editor" id="saleEditor" ${status === "预定中" ? "hidden" : ""}>
       <div class="sale-editor-head"><div><p class="eyebrow">SALE STATUS</p><h2 class="form-title">出售藏品</h2></div><span>仅已有收藏可标记</span></div>
@@ -696,7 +695,7 @@ function lifeAddView() {
     <section class="form-section"><p class="eyebrow">EXPENSE NOTE</p><h2 class="form-title">支出备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="用途、付款方式、同行人…">${escapeHtml(source.note || "")}</textarea></label></section>
     <section class="form-section"><p class="eyebrow">RECEIPT IMAGE</p><h2 class="form-title">支出图片 <small>可选</small></h2>
       <div class="image-uploader"><div class="image-preview" id="lifeImagePreview">${image ? `<img src="${escapeHtml(image)}" alt="支出图片预览" />` : `<b>＋</b><span>支出图</span>`}</div><div class="image-actions"><button id="chooseLifeImage" type="button">上传图片</button><button id="clearLifeImage" class="alt" type="button">移除图片</button></div></div>
-      <input id="lifeImageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="lifeUploadNote">原图不超过 5MB，上传时自动压缩为 WebP。</p>
+      <input id="lifeImageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden /><p class="upload-note" id="lifeUploadNote">上传后自动压缩为 WebP，较大图片会进行多轮压缩。</p>
     </section>
     ${existing ? `<button class="delete-record" id="deleteExpense" type="button">删除这笔支出</button>` : ""}
   </form>`;
@@ -925,13 +924,12 @@ function resizeImage(file, maxSide, quality) {
 }
 
 async function compressImage(file) {
-  const attempts = [[COMPRESSED_IMAGE_MAX_SIDE, .82], [1100, .74], [900, .66], [720, .58], [600, .5]];
-  let output = "";
-  for (const [side, quality] of attempts) {
-    output = await resizeImage(file, side, quality);
-    if (dataUrlByteSize(output) <= COMPRESSED_IMAGE_MAX_BYTES) return output;
-  }
-  throw new Error("图片压缩后仍然过大，请换一张图片");
+  const firstPass = await resizeImage(file, COMPRESSED_IMAGE_MAX_SIDE, .78);
+  const firstPassBytes = dataUrlByteSize(firstPass);
+  if (firstPassBytes <= COMPRESSED_IMAGE_MAX_BYTES) return firstPass;
+  const adaptiveRatio = Math.sqrt(COMPRESSED_IMAGE_MAX_BYTES / Math.max(1, firstPassBytes));
+  const secondSide = Math.max(480, Math.min(960, Math.round(COMPRESSED_IMAGE_MAX_SIDE * adaptiveRatio * .9)));
+  return resizeImage(file, secondSide, .56);
 }
 
 function updateFormImage(url, message = "") {
@@ -987,7 +985,6 @@ function bindAddEvents() {
     event.target.value = "";
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return showToast("请选择 JPG、PNG 或 WebP 图片");
-    if (file.size > MAX_IMAGE_UPLOAD_BYTES) return showToast(`原图不能超过 5MB（当前 ${formatFileSize(file.size)}）`);
     const note = content.querySelector("#uploadNote");
     if (note) note.textContent = "正在压缩图片…";
     try {
@@ -1063,7 +1060,6 @@ function bindLifeAddEvents() {
     event.target.value = "";
     if (!file) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return showToast("请选择 JPG、PNG 或 WebP 图片");
-    if (file.size > MAX_IMAGE_UPLOAD_BYTES) return showToast(`原图不能超过 5MB（当前 ${formatFileSize(file.size)}）`);
     const note = content.querySelector("#lifeUploadNote");
     if (note) note.textContent = "正在压缩图片…";
     try {
