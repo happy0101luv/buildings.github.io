@@ -325,6 +325,9 @@ img { display: block; max-width: 100%; }
 .search-box { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
 .search-box svg { flex: 0 0 auto; width: 18px; color: var(--soft); }
 .search-box input { width: 100%; border: 0; outline: 0; background: transparent; font-size: 15px; }
+.collection-search input { font-size: 16px; }
+.collection-search button { flex: 0 0 auto; width: 38px; height: 36px; margin-right: -8px; border: 0; border-radius: 6px; background: var(--red); color: #fff; display: grid; place-items: center; }
+.collection-search button svg { width: 18px; height: 18px; }
 .search-box input::placeholder { color: var(--soft); }
 .collection-search { margin-top: 9px; }
 .collection-search + .segment { margin-top: 11px; }
@@ -466,6 +469,13 @@ img { display: block; max-width: 100%; }
 .save-wall { width: 100%; height: 50px; margin-top: 14px; border: 0; border-radius: 6px; background: var(--red); color: #fff; display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 15px; font-weight: 900; }
 .save-wall svg { width: 19px; }
 .save-wall:disabled { background: #d4d0c9; color: #f4f2ee; }
+.ios-image-saver { position: fixed; z-index: 9999; inset: 0; overflow: auto; overscroll-behavior: contain; background: #161514; -webkit-overflow-scrolling: touch; }
+.ios-image-saver-bar { position: sticky; z-index: 2; top: 0; min-height: 64px; padding: max(9px, env(safe-area-inset-top)) 14px 9px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; background: rgba(20, 19, 18, .94); color: #fff; backdrop-filter: blur(12px); }
+.ios-image-saver-bar button { height: 36px; padding: 0 13px; border: 1px solid #625e58; border-radius: 18px; background: #2c2a28; color: #fff; font-size: 13px; }
+.ios-image-saver-bar b, .ios-image-saver-bar span { display: block; }
+.ios-image-saver-bar b { font-size: 14px; }
+.ios-image-saver-bar span { margin-top: 3px; color: #c8c3bc; font-size: 10px; }
+.ios-image-saver > img { width: 100%; height: auto; margin: 0 auto; -webkit-touch-callout: default; user-select: auto; }
 .wish-card { overflow: hidden; }
 .wish-card-top { padding: 16px 13px 31px; }
 .wish-card-foot { display: flex; justify-content: space-between; padding: 12px 13px; background: #fff; color: var(--muted); font-size: 11px; font-weight: 800; }

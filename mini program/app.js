@@ -44,6 +44,7 @@ const state = {
   selectedYear: new Date().getFullYear(),
   dashboardPeriod: "year",
   collectionSearch: "",
+  collectionSearchDraft: "",
   collectionStatus: "全部",
   collectionCategory: "全部分类",
   collectionView: "list",
@@ -57,6 +58,7 @@ const state = {
   wallLoading: false,
   wallGenerated: false,
   wallImageUrl: "",
+  wallImageBlob: null,
   loadedImageIds: new Set(),
   failedImageIds: new Set(),
   retryFailedImages: false,
@@ -394,7 +396,7 @@ function collectionWallView() {
       <div class="loader-track"><b id="wallProgressBar"></b><em id="wallProgressCart">玩</em></div><div class="loader-meta"><strong id="wallProgressPercent">0%</strong><span id="wallProgressCount">0 / ${records.length} 张封面就位</span></div>
     </div>
     <button class="generate-wall" id="generateWall" type="button" ${loading || !records.length ? "disabled" : ""}><i data-lucide="sparkles"></i>${loading ? "正在生成…" : "生成收藏墙"}</button>` : `<button class="wall-image-preview" id="openWallImage" type="button" aria-label="打开收藏墙图片"><img src="${state.wallImageUrl}" alt="生成的收藏墙长图" /></button>
-    <button class="save-wall" id="saveWall" type="button" ${records.length ? "" : "disabled"}><i data-lucide="download"></i>保存长图</button>`}
+    <button class="save-wall" id="saveWall" type="button" ${records.length ? "" : "disabled"}><i data-lucide="image-down"></i>保存到相册</button>`}
   </section>`;
 }
 
@@ -591,7 +593,7 @@ function collectionView() {
       <p>${totalCount} 件藏品&nbsp; · &nbsp;${paymentPending.length} 待补款&nbsp; · &nbsp;${arrivalPending.length} 待到货</p>
       <div class="investment-split collection-investment-split"><div>已付金额<strong>¥${formatMoney(totalPaid)}</strong></div><div>售出盈亏<strong class="${profitClass(realizedProfit)}">${signedMoney(realizedProfit)}</strong></div><div>净投入<strong>¥${formatMoney(netInvestment)}</strong></div></div>
     </div>
-    <label class="search-box collection-search"><i data-lucide="search"></i><input id="collectionSearch" value="${escapeHtml(state.collectionSearch)}" placeholder="搜索藏品 / 厂牌 / 分类 / 备注" /></label>
+    <form class="search-box collection-search" id="collectionSearchForm"><i data-lucide="search"></i><input id="collectionSearch" value="${escapeHtml(state.collectionSearchDraft)}" placeholder="搜索藏品 / 厂牌 / 分类 / 备注" enterkeyhint="search" autocapitalize="none" spellcheck="false" /><button id="collectionSearchButton" type="submit" aria-label="执行搜索"><i data-lucide="search"></i></button></form>
     <div class="segment" id="statusSegment">
       ${["全部", "已入库", "已卖出", "待补款", "待到货"].map((item) => `<button type="button" data-status="${item}" class="${state.collectionStatus === item ? "active" : ""}">${item}</button>`).join("")}
     </div>
@@ -745,9 +747,13 @@ function bindCommonButtons() {
 function bindCollectionEvents() {
   const search = content.querySelector("#collectionSearch");
   search?.addEventListener("input", (event) => {
-    state.collectionSearch = event.target.value;
-    clearTimeout(bindCollectionEvents.searchTimer);
-    bindCollectionEvents.searchTimer = setTimeout(render, 160);
+    state.collectionSearchDraft = event.target.value;
+  });
+  content.querySelector("#collectionSearchForm")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.collectionSearch = String(state.collectionSearchDraft || "").trim();
+    search?.blur();
+    render();
   });
   content.querySelectorAll("[data-status]").forEach((button) => button.addEventListener("click", () => {
     state.collectionStatus = button.dataset.status;
@@ -1320,6 +1326,7 @@ function loadWallImage(url) {
 function releaseWallImage() {
   if (String(state.wallImageUrl || "").startsWith("blob:")) URL.revokeObjectURL(state.wallImageUrl);
   state.wallImageUrl = "";
+  state.wallImageBlob = null;
 }
 
 function nextPaint() {
@@ -1431,17 +1438,47 @@ async function createCollectionWallImage() {
   const blob = await new Promise((resolve, reject) => {
     canvas.toBlob((value) => value ? resolve(value) : reject(new Error("image encode failed")), "image/png");
   });
+  state.wallImageBlob = blob;
   return URL.createObjectURL(blob);
 }
 
 async function saveCollectionWall() {
   const imageUrl = state.wallImageUrl || await createCollectionWallImage();
   if (!imageUrl) return showToast("当前没有可保存的收藏");
+  const blob = state.wallImageBlob || await fetch(imageUrl).then((response) => response.blob());
+  const filename = `我的收藏墙-${new Date().toISOString().slice(0, 10)}.png`;
+  const imageFile = new File([blob], filename, { type: "image/png" });
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (navigator.share && navigator.canShare?.({ files: [imageFile] })) {
+    try {
+      await navigator.share({ files: [imageFile], title: "我的收藏墙" });
+      showToast("请在系统菜单中选择“存储图像”");
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      if (!isIOS) throw error;
+    }
+  }
+  if (isIOS) {
+    openIOSImageSaver(imageUrl);
+    return;
+  }
   const link = document.createElement("a");
-  link.download = `我的收藏墙-${new Date().toISOString().slice(0, 10)}.png`;
+  link.download = filename;
   link.href = imageUrl;
   link.click();
-  showToast("收藏墙长图已保存");
+  showToast("收藏墙长图已下载");
+}
+
+function openIOSImageSaver(imageUrl) {
+  document.querySelector("#iosImageSaver")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "ios-image-saver";
+  overlay.id = "iosImageSaver";
+  overlay.innerHTML = `<div class="ios-image-saver-bar"><button type="button" aria-label="关闭图片预览">关闭</button><div><b>保存到 iPhone 相册</b><span>长按下方图片，选择“存储到照片”</span></div></div><img src="${imageUrl}" alt="收藏墙长图，请长按保存到照片" />`;
+  document.body.append(overlay);
+  overlay.querySelector("button")?.addEventListener("click", () => overlay.remove());
+  showToast("请长按收藏墙图片并选择“存储到照片”");
 }
 
 function bindCollectionWallEvents() {
@@ -1463,12 +1500,12 @@ function bindCollectionWallEvents() {
   });
   content.querySelector("#saveWall")?.addEventListener("click", async (event) => {
     event.currentTarget.disabled = true;
-    event.currentTarget.textContent = "正在生成长图…";
+    event.currentTarget.textContent = "正在准备图片…";
     try { await saveCollectionWall(); }
-    catch { showToast("长图生成失败，请稍后重试"); }
+    catch (error) { if (error?.name !== "AbortError") showToast("图片保存失败，请稍后重试"); }
     finally {
       event.currentTarget.disabled = false;
-      event.currentTarget.innerHTML = '<i data-lucide="download"></i>保存长图';
+      event.currentTarget.innerHTML = '<i data-lucide="image-down"></i>保存到相册';
       window.lucide?.createIcons?.();
     }
   });
