@@ -4,6 +4,7 @@ const BACKUP_KEY = "hangar07-backups-v1:本地镜像";
 const PENDING_SYNC_KEY = "hangar07-pending-sync-v1:本地镜像";
 const LIFE_STORAGE_KEY = "wanwu-life-expenses-v1";
 const FULL_BACKUP_KEY = "wanwu-full-data-backups-v1";
+const COLLECTION_CATEGORIES_KEY = "wanwu-collection-categories-v1";
 const STORAGE_COMPACTED_KEY = "wanwu-storage-compacted-v2";
 const COMPRESSED_IMAGE_MAX_BYTES = 180 * 1024;
 const COMPRESSED_IMAGE_MAX_SIDE = 1280;
@@ -17,7 +18,7 @@ const TITLES = {
   add: "新增收藏",
   "life-add": "新增支出",
 };
-const CATEGORIES = ["全部分类", "高达模型", "机娘", "兵人/人偶", "变形金刚", "其他"];
+const DEFAULT_COLLECTION_CATEGORIES = ["高达模型", "机娘", "兵人/人偶", "变形金刚", "其他"];
 const LIFE_CATEGORIES = ["全部", "衣", "食", "住", "行", "玩", "收藏"];
 const LIFE_EXPENSE_CATEGORIES = LIFE_CATEGORIES.slice(1);
 
@@ -46,6 +47,8 @@ const state = {
   collectionSearchDraft: "",
   collectionStatus: "全部",
   collectionCategory: "全部分类",
+  collectionCategories: [],
+  categoryManagerOpen: false,
   collectionView: "list",
   editingId: "",
   editingExpenseId: "",
@@ -81,6 +84,33 @@ function loadRecords() {
 function loadLifeRecords() {
   const value = safeParse(localStorage.getItem(LIFE_STORAGE_KEY), []);
   return Array.isArray(value) ? value : [];
+}
+
+function loadCollectionCategories(records) {
+  const saved = safeParse(localStorage.getItem(COLLECTION_CATEGORIES_KEY), []);
+  return MiniProgramData.normalizeCategoryConfig(saved, records, DEFAULT_COLLECTION_CATEGORIES);
+}
+
+function saveCollectionCategories(reason = "分类标签更新") {
+  try {
+    localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(state.collectionCategories));
+    backupAllData(reason);
+    return true;
+  } catch {
+    showToast("本机存储空间不足，分类设置保存失败");
+    return false;
+  }
+}
+
+function visibleCollectionCategories() {
+  return state.collectionCategories.filter((category) => !category.hidden);
+}
+
+function ensureCollectionCategory(name) {
+  const value = String(name || "").trim();
+  if (!value || value === "全部分类" || state.collectionCategories.some((category) => category.name === value)) return;
+  state.collectionCategories.push({ name: value, hidden: false });
+  try { localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(state.collectionCategories)); } catch {}
 }
 
 function saveLifeRecords() {
@@ -123,6 +153,7 @@ function buildLightSnapshot() {
   return {
     records: imageLightRecords(state.records),
     lifeRecords: imageLightRecords(state.lifeRecords),
+    collectionCategories: structuredClone(state.collectionCategories),
   };
 }
 
@@ -149,11 +180,12 @@ function buildDataArchive() {
   return {
     exportedAt: new Date().toISOString(),
     app: "玩物不丧志",
-    version: 1,
+    version: 2,
     records: structuredClone(state.records),
     backups: structuredClone(getCollectionBackups()),
     lifeRecords: structuredClone(state.lifeRecords),
     lifeCategories: [...LIFE_EXPENSE_CATEGORIES],
+    collectionCategories: structuredClone(state.collectionCategories),
   };
 }
 
@@ -563,44 +595,57 @@ function dashboardView() {
 }
 
 function collectionView() {
-  const totalCount = state.records.reduce((sum, record) => sum + quantity(record), 0);
-  const totalPaid = state.records.reduce((sum, record) => sum + paidAmount(record), 0);
-  const totalDue = state.records.reduce((sum, record) => sum + dueAmount(record), 0);
-  const realizedProfit = state.records
+  const filtered = MiniProgramData.filterCollectionRecords(state.records, {
+    statuses: state.collectionStatus === "全部" ? [] : [state.collectionStatus],
+    categories: state.collectionCategory === "全部分类" ? [] : [state.collectionCategory],
+    search: state.collectionSearch,
+  }).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  const { totalCount, totalPaid, totalDue, paymentPendingCount, arrivalPendingCount } = MiniProgramData.summarizeCollectionRecords(filtered);
+  const realizedProfit = filtered
     .filter((record) => record.status === "已卖出")
     .reduce((sum, record) => sum + saleProfit(record), 0);
   const netInvestment = totalPaid - realizedProfit;
-  const preorders = state.records.filter((record) => record.status === "预定中");
-  const paymentPending = preorders.filter((record) => record.preorderStage !== "arrival" && dueAmount(record) > 0);
-  const arrivalPending = preorders.filter((record) => record.preorderStage === "arrival" || dueAmount(record) <= 0);
-  const search = state.collectionSearch.trim().toLowerCase();
-  const filtered = state.records.filter((record) => {
-    const matchesSearch = !search || `${record.name || ""} ${record.series || ""} ${record.category || ""} ${record.note || ""}`.toLowerCase().includes(search);
-    const matchesStatus = state.collectionStatus === "全部"
-      || (state.collectionStatus === "已入库" && record.status === "已入库")
-      || (state.collectionStatus === "已卖出" && record.status === "已卖出")
-      || (state.collectionStatus === "待补款" && record.status === "预定中" && record.preorderStage !== "arrival" && dueAmount(record) > 0)
-      || (state.collectionStatus === "待到货" && record.status === "预定中" && (record.preorderStage === "arrival" || dueAmount(record) <= 0));
-    const matchesCategory = state.collectionCategory === "全部分类" || record.category === state.collectionCategory;
-    return matchesSearch && matchesStatus && matchesCategory;
-  }).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  const statusLabel = state.collectionStatus === "全部" ? "" : state.collectionStatus;
+  const categoryLabel = state.collectionCategory === "全部分类" ? "" : state.collectionCategory;
+  const scopeLabel = MiniProgramData.collectionScopeLabel(state.collectionStatus, state.collectionCategory);
+  const hasActiveFilters = Boolean(state.collectionSearch || statusLabel || categoryLabel);
   return `<section class="page">
     <div class="archive-intro"><p class="eyebrow">COLLECTION ARCHIVE</p><h2>我的收藏 <small>${totalCount} 件</small></h2></div>
     <div class="investment-card">
-      <p class="eyebrow">COLLECTION INVESTMENT</p><span class="investment-pill">全部收藏投入</span>
+      <p class="eyebrow">COLLECTION INVESTMENT</p><span class="investment-pill">${escapeHtml(scopeLabel)}</span>
       <div class="big-money"><b>¥</b>${formatMoney(totalPaid)}</div>
-      <p>${totalCount} 件藏品&nbsp; · &nbsp;${paymentPending.length} 待补款&nbsp; · &nbsp;${arrivalPending.length} 待到货</p>
+      <p>${totalCount} 件藏品&nbsp; · &nbsp;${paymentPendingCount} 待补款&nbsp; · &nbsp;${arrivalPendingCount} 待到货</p>
       <div class="investment-split collection-investment-split"><div>已付金额<strong>¥${formatMoney(totalPaid)}</strong></div><div>售出盈亏<strong class="${profitClass(realizedProfit)}">${signedMoney(realizedProfit)}</strong></div><div>净投入<strong>¥${formatMoney(netInvestment)}</strong></div></div>
     </div>
     <form class="search-box collection-search" id="collectionSearchForm"><i data-lucide="search"></i><input id="collectionSearch" value="${escapeHtml(state.collectionSearchDraft)}" placeholder="搜索藏品 / 厂牌 / 分类 / 备注" enterkeyhint="search" autocapitalize="none" spellcheck="false" /><button id="collectionSearchButton" type="submit" aria-label="执行搜索"><i data-lucide="search"></i></button></form>
     <div class="segment" id="statusSegment">
       ${["全部", "已入库", "已卖出", "待补款", "待到货"].map((item) => `<button type="button" data-status="${item}" class="${state.collectionStatus === item ? "active" : ""}">${item}</button>`).join("")}
     </div>
-    <div class="filter-row"><span class="filter-label">分类</span>${CATEGORIES.map((category) => `<button class="chip ${state.collectionCategory === category ? "active" : ""}" type="button" data-category="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join("")}<button class="chip" id="manageCategories" type="button">管理</button></div>
-    <div class="list-meta"><span>当前显示 ${filtered.length} 件</span><div class="view-switch"><button type="button" data-list-view="list" class="${state.collectionView === "list" ? "active" : ""}">清单</button><button type="button" data-list-view="grid" class="${state.collectionView === "grid" ? "active" : ""}">展柜</button></div></div>
+    <div class="filter-row"><span class="filter-label">分类</span><button class="chip ${state.collectionCategory === "全部分类" ? "active" : ""}" type="button" data-category="全部分类">全部分类</button>${visibleCollectionCategories().map((category) => `<button class="chip ${state.collectionCategory === category.name ? "active" : ""}" type="button" data-category="${escapeHtml(category.name)}">${escapeHtml(category.name)}</button>`).join("")}<button class="chip manage-chip" id="manageCategories" type="button">管理</button></div>
+    <div class="list-meta"><span>当前显示 ${totalCount} 件</span><div class="view-switch"><button type="button" data-list-view="list" class="${state.collectionView === "list" ? "active" : ""}">清单</button><button type="button" data-list-view="grid" class="${state.collectionView === "grid" ? "active" : ""}">展柜</button></div></div>
     <div class="collection-image-progress" id="collectionImageProgress" hidden><div><span id="collectionImageProgressText">正在加载图片 0/0</span><b id="collectionImageProgressPercent">0%</b></div><i><em id="collectionImageProgressBar"></em></i></div>
-    ${filtered.length ? `<div class="record-list ${state.collectionView}">${filtered.map(state.collectionView === "grid" ? showcaseItem : recordCard).join("")}</div>` : `<div class="empty-state"><p>没有匹配的藏品</p></div>`}
+    ${filtered.length ? `<div class="record-list ${state.collectionView}">${filtered.map(state.collectionView === "grid" ? showcaseItem : recordCard).join("")}</div>` : `<div class="empty-state collection-empty"><p>没有匹配的藏品${hasActiveFilters ? '<button class="clear-collection-filters" id="clearCollectionFilters" type="button">清空筛选</button>' : ""}</p></div>`}
+    ${state.categoryManagerOpen ? categoryManagerView() : ""}
   </section>`;
+}
+
+function categoryManagerView() {
+  return `<div class="category-manager-backdrop" id="categoryManagerBackdrop" tabindex="-1">
+    <section class="category-manager-sheet" role="dialog" aria-modal="true" aria-labelledby="categoryManagerTitle">
+      <header class="category-manager-head"><div><h2 id="categoryManagerTitle">分类标签</h2><p>调整展示顺序，隐藏不常用分类</p></div><button id="closeCategoryManager" type="button" aria-label="关闭分类管理"><i data-lucide="x"></i></button></header>
+      <div class="category-manager-list">
+        ${state.collectionCategories.map((category, index) => `<div class="category-manager-row ${category.hidden ? "is-hidden" : ""}">
+          <div><strong>${escapeHtml(category.name)}</strong>${category.hidden ? "<small>已隐藏</small>" : ""}</div>
+          <div class="category-manager-actions">
+            <button type="button" data-category-move="-1" data-category-index="${index}" aria-label="上移 ${escapeHtml(category.name)}" ${index === 0 ? "disabled" : ""}><i data-lucide="arrow-up"></i></button>
+            <button type="button" data-category-move="1" data-category-index="${index}" aria-label="下移 ${escapeHtml(category.name)}" ${index === state.collectionCategories.length - 1 ? "disabled" : ""}><i data-lucide="arrow-down"></i></button>
+            <button class="category-visibility" type="button" data-category-visibility="${index}">${category.hidden ? "显示" : "隐藏"}</button>
+          </div>
+        </div>`).join("")}
+      </div>
+      <footer class="category-manager-foot"><button class="category-reset" id="resetCategories" type="button">恢复默认</button><button class="category-done" id="finishCategoryManager" type="button">完成</button></footer>
+    </section>
+  </div>`;
 }
 
 function profileView() {
@@ -624,7 +669,7 @@ function profileView() {
       <div class="data-actions">
         <button id="exportBackup" type="button"><i data-lucide="download"></i><span>导出数据<small>按标准模板保存</small></span></button>
         <button id="copyBackup" type="button"><i data-lucide="copy"></i><span>复制备份<small>复制完整 JSON</small></span></button>
-        <button id="importBackup" type="button"><i data-lucide="upload"></i><span>导入数据<small>导入前自动备份</small></span></button>
+        <button id="importBackup" type="button"><i data-lucide="upload"></i><span>合并导入<small>自动去重并保留本机</small></span></button>
         <button id="restorePrevious" type="button"><i data-lucide="history"></i><span>恢复上版<small>恢复最近历史版本</small></span></button>
         <button id="reloadCollectionImages" type="button"><i data-lucide="refresh-cw"></i><span>重新加载图片<small>重试收藏封面</small></span></button>
       </div>
@@ -655,7 +700,7 @@ function addView() {
       <p class="eyebrow">COLLECTION DETAILS</p><h2 class="form-title">藏品资料</h2>
       <label class="field"><span>藏品名称<b>*</b></span><input name="name" required maxlength="80" value="${escapeHtml(source.name || "")}" placeholder="例如：MGEX 强袭自由高达" /></label>
       <label class="field"><span>收藏分类 <small>可自定义</small></span><input name="category" value="${escapeHtml(category)}" maxlength="30" placeholder="填写分类名称" /></label>
-      <div class="quick-categories">${CATEGORIES.slice(1).map((item) => `<button type="button" data-quick-category="${escapeHtml(item)}" class="${item === category ? "active" : ""}">${escapeHtml(item)}</button>`).join("")}</div>
+      <div class="quick-categories">${visibleCollectionCategories().map((item) => `<button type="button" data-quick-category="${escapeHtml(item.name)}" class="${item.name === category ? "active" : ""}">${escapeHtml(item.name)}</button>`).join("")}</div>
       <label class="field"><span>厂牌 / 系列<b>*</b></span><input name="series" required maxlength="80" value="${escapeHtml(source.series || "")}" placeholder="例如：BANDAI / MGEX" /></label>
     </section>
     <section class="form-section">
@@ -760,7 +805,56 @@ function bindCollectionEvents() {
   }));
   content.querySelectorAll("[data-category]").forEach((button) => button.addEventListener("click", () => { state.collectionCategory = button.dataset.category; render(); }));
   content.querySelectorAll("[data-list-view]").forEach((button) => button.addEventListener("click", () => { state.collectionView = button.dataset.listView; render(); }));
-  content.querySelector("#manageCategories")?.addEventListener("click", () => showToast("分类会根据收藏记录自动整理"));
+  content.querySelector("#clearCollectionFilters")?.addEventListener("click", () => {
+    state.collectionSearch = "";
+    state.collectionSearchDraft = "";
+    state.collectionStatus = "全部";
+    state.collectionCategory = "全部分类";
+    render();
+  });
+  content.querySelector("#manageCategories")?.addEventListener("click", () => {
+    state.categoryManagerOpen = true;
+    render();
+  });
+  const closeManager = () => {
+    state.categoryManagerOpen = false;
+    render();
+  };
+  content.querySelector("#closeCategoryManager")?.addEventListener("click", closeManager);
+  content.querySelector("#finishCategoryManager")?.addEventListener("click", closeManager);
+  const managerBackdrop = content.querySelector("#categoryManagerBackdrop");
+  managerBackdrop?.addEventListener("click", (event) => {
+    if (event.target.id === "categoryManagerBackdrop") closeManager();
+  });
+  managerBackdrop?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeManager();
+  });
+  content.querySelector("#closeCategoryManager")?.focus();
+  content.querySelectorAll("[data-category-move]").forEach((button) => button.addEventListener("click", () => {
+    const from = Number(button.dataset.categoryIndex);
+    const to = from + Number(button.dataset.categoryMove);
+    if (from < 0 || to < 0 || from >= state.collectionCategories.length || to >= state.collectionCategories.length) return;
+    const next = [...state.collectionCategories];
+    [next[from], next[to]] = [next[to], next[from]];
+    state.collectionCategories = next;
+    saveCollectionCategories("调整分类顺序");
+    render();
+  }));
+  content.querySelectorAll("[data-category-visibility]").forEach((button) => button.addEventListener("click", () => {
+    const index = Number(button.dataset.categoryVisibility);
+    const category = state.collectionCategories[index];
+    if (!category) return;
+    state.collectionCategories = state.collectionCategories.map((item, itemIndex) => itemIndex === index ? { ...item, hidden: !item.hidden } : item);
+    if (state.collectionCategories[index].hidden && state.collectionCategory === category.name) state.collectionCategory = "全部分类";
+    saveCollectionCategories(state.collectionCategories[index].hidden ? "隐藏分类" : "显示分类");
+    render();
+  }));
+  content.querySelector("#resetCategories")?.addEventListener("click", () => {
+    state.collectionCategories = MiniProgramData.normalizeCategoryConfig([], state.records, DEFAULT_COLLECTION_CATEGORIES);
+    state.collectionCategory = "全部分类";
+    saveCollectionCategories("恢复默认分类");
+    render();
+  });
   startCollectionImageQueue();
 }
 
@@ -1024,6 +1118,7 @@ function bindAddEvents() {
       catalogId: existing?.catalogId || "",
       updatedAt: new Date().toISOString(),
     };
+    ensureCollectionCategory(next.category);
     if (existing) state.records = state.records.map((record) => String(record.id) === String(existing.id) ? next : record);
     else state.records.unshift(next);
     if (!saveRecords(existing ? "修改收藏" : "新增收藏")) return;
@@ -1125,13 +1220,26 @@ function isValidImportedExpense(record) {
   );
 }
 
-function persistAllData(records, lifeRecords, reason) {
+function persistAllData(records, lifeRecords, reason, collectionCategories = state.collectionCategories) {
   const recordsPayload = JSON.stringify(records);
   const lightRecords = imageLightRecords(records);
   localStorage.setItem(SCOPED_STORAGE_KEY, recordsPayload);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(lightRecords));
   localStorage.setItem(LIFE_STORAGE_KEY, JSON.stringify(lifeRecords));
+  localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(collectionCategories));
   localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ records: lightRecords, reason, savedAt: new Date().toISOString() }));
+}
+
+function importedCategoryConfig(archive, records) {
+  if (Array.isArray(archive)) return MiniProgramData.normalizeCategoryConfig([], records, []);
+  if (Array.isArray(archive?.collectionCategories)) return MiniProgramData.normalizeCategoryConfig(archive.collectionCategories, records, []);
+  if (Array.isArray(archive?.categories)) return MiniProgramData.normalizeCategoryConfig(archive.categories, records, []);
+  if (Array.isArray(archive?.categoryOrder)) {
+    const hidden = new Set(Array.isArray(archive.hiddenCategories) ? archive.hiddenCategories.map(String) : []);
+    const legacy = archive.categoryOrder.map((name) => ({ name, hidden: hidden.has(String(name)) }));
+    return MiniProgramData.normalizeCategoryConfig(legacy, records, []);
+  }
+  return MiniProgramData.normalizeCategoryConfig([], records, []);
 }
 
 async function importBackupFile(file) {
@@ -1143,9 +1251,18 @@ async function importBackupFile(file) {
     const importedLifeRecords = hasLifeRecords ? archive.lifeRecords : state.lifeRecords;
     if (!Array.isArray(importedRecords) || !importedRecords.every(isValidImportedRecord)) throw new Error("invalid records");
     if (!Array.isArray(importedLifeRecords) || !importedLifeRecords.every(isValidImportedExpense)) throw new Error("invalid expenses");
-    const message = hasLifeRecords
-      ? `将导入 ${importedRecords.length} 条收藏和 ${importedLifeRecords.length} 笔生活支出。当前数据会先自动备份，确认继续吗？`
-      : `将导入 ${importedRecords.length} 条收藏。该旧版备份不含生活记账，现有生活数据会保留。当前数据会先自动备份，确认继续吗？`;
+    const collectionMerge = MiniProgramData.mergeRecords(state.records, importedRecords, "collection");
+    const lifeMerge = hasLifeRecords
+      ? MiniProgramData.mergeRecords(state.lifeRecords, importedLifeRecords, "life")
+      : { records: structuredClone(state.lifeRecords), added: 0, updated: 0, duplicates: 0 };
+    const categoryMerge = MiniProgramData.mergeCategoryConfigs(
+      state.collectionCategories,
+      importedCategoryConfig(archive, importedRecords),
+      collectionMerge.records,
+      DEFAULT_COLLECTION_CATEGORIES,
+    );
+    const addedCategories = Math.max(0, categoryMerge.length - state.collectionCategories.length);
+    const message = `将以合并方式导入，不会清空本机数据。\n\n收藏：新增 ${collectionMerge.added} 条、更新 ${collectionMerge.updated} 条、跳过重复 ${collectionMerge.duplicates} 条\n生活支出：新增 ${lifeMerge.added} 笔、更新 ${lifeMerge.updated} 笔、跳过重复 ${lifeMerge.duplicates} 笔\n分类标签：新增 ${addedCategories} 个\n\n导入前会自动备份，确认继续吗？`;
     if (!window.confirm(message)) return;
 
     const beforeArchive = buildDataArchive();
@@ -1158,17 +1275,21 @@ async function importBackupFile(file) {
 
     const previousRecords = structuredClone(state.records);
     const previousLifeRecords = structuredClone(state.lifeRecords);
+    const previousCategories = structuredClone(state.collectionCategories);
     try {
-      state.records = structuredClone(importedRecords);
-      state.lifeRecords = structuredClone(importedLifeRecords);
+      state.records = collectionMerge.records;
+      state.lifeRecords = lifeMerge.records;
+      state.collectionCategories = categoryMerge;
       state.loadedImageIds.clear();
       state.failedImageIds.clear();
-      persistAllData(state.records, state.lifeRecords, "导入恢复");
-      addCollectionBackup("导入恢复");
+      persistAllData(state.records, state.lifeRecords, "合并导入", state.collectionCategories);
+      addCollectionBackup("合并导入");
+      backupAllData("合并导入");
     } catch (error) {
       state.records = previousRecords;
       state.lifeRecords = previousLifeRecords;
-      persistAllData(previousRecords, previousLifeRecords, "导入失败自动还原");
+      state.collectionCategories = previousCategories;
+      persistAllData(previousRecords, previousLifeRecords, "导入失败自动还原", previousCategories);
       throw error;
     }
 
@@ -1176,7 +1297,7 @@ async function importBackupFile(file) {
     state.selectedYear = collectionYears.length ? "all" : new Date().getFullYear();
     const lifeYears = state.lifeRecords.map((record) => Number(String(record.date || "").slice(0, 4))).filter(Number.isFinite);
     state.lifeYear = lifeYears.length ? "all" : new Date().getFullYear();
-    showToast(`导入完成：${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
+    showToast(`合并完成：新增 ${collectionMerge.added} 条收藏，跳过 ${collectionMerge.duplicates} 条重复`);
     render();
   } catch (error) {
     showToast("导入失败：请选择“玩物不丧志”导出的 JSON 备份文件");
@@ -1213,7 +1334,7 @@ function findPreviousDataSnapshot() {
   for (const backup of getCollectionBackups()) {
     if (!backup?.payload || backup.payload === currentRecordsPayload) continue;
     const records = safeParse(backup.payload, null);
-    if (Array.isArray(records)) return { records, lifeRecords: structuredClone(state.lifeRecords) };
+    if (Array.isArray(records)) return { records, lifeRecords: structuredClone(state.lifeRecords), collectionCategories: structuredClone(state.collectionCategories) };
   }
   return null;
 }
@@ -1228,10 +1349,12 @@ function restorePreviousData() {
   if (!backupAllData("恢复上版前自动备份")) return showToast("本机备份空间不足，已取消恢复");
   const previousRecords = structuredClone(state.records);
   const previousLifeRecords = structuredClone(state.lifeRecords);
+  const previousCategories = structuredClone(state.collectionCategories);
   try {
     state.records = structuredClone(snapshot.records);
     state.lifeRecords = structuredClone(snapshot.lifeRecords);
-    persistAllData(state.records, state.lifeRecords, "恢复上版");
+    state.collectionCategories = MiniProgramData.normalizeCategoryConfig(snapshot.collectionCategories, state.records, DEFAULT_COLLECTION_CATEGORIES);
+    persistAllData(state.records, state.lifeRecords, "恢复上版", state.collectionCategories);
     addCollectionBackup("恢复上版");
     backupAllData("恢复上版");
     const collectionYears = state.records.map(yearOf).filter(Number.isFinite);
@@ -1243,7 +1366,8 @@ function restorePreviousData() {
   } catch {
     state.records = previousRecords;
     state.lifeRecords = previousLifeRecords;
-    try { persistAllData(previousRecords, previousLifeRecords, "恢复失败自动还原"); } catch {}
+    state.collectionCategories = previousCategories;
+    try { persistAllData(previousRecords, previousLifeRecords, "恢复失败自动还原", previousCategories); } catch {}
     showToast("恢复失败，当前数据未改变");
   }
 }
@@ -1279,13 +1403,18 @@ function bindProfileEvents() {
     if (!backupAllData("清空测试数据前自动备份")) return showToast("本机备份空间不足，已取消清空");
     const previousRecords = structuredClone(state.records);
     const previousLifeRecords = structuredClone(state.lifeRecords);
+    const previousCategories = structuredClone(state.collectionCategories);
     try {
       localStorage.setItem(SCOPED_STORAGE_KEY, "[]");
       localStorage.setItem(STORAGE_KEY, "[]");
       localStorage.setItem(LIFE_STORAGE_KEY, "[]");
+      localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(DEFAULT_COLLECTION_CATEGORIES.map((name) => ({ name, hidden: false }))));
       localStorage.removeItem(PENDING_SYNC_KEY);
       state.records = [];
       state.lifeRecords = [];
+      state.collectionCategories = DEFAULT_COLLECTION_CATEGORIES.map((name) => ({ name, hidden: false }));
+      state.collectionStatus = "全部";
+      state.collectionCategory = "全部分类";
       state.loadedImageIds.clear();
       state.failedImageIds.clear();
       state.selectedYear = new Date().getFullYear();
@@ -1295,7 +1424,8 @@ function bindProfileEvents() {
     } catch {
       state.records = previousRecords;
       state.lifeRecords = previousLifeRecords;
-      try { persistAllData(previousRecords, previousLifeRecords, "清空失败自动还原"); } catch {}
+      state.collectionCategories = previousCategories;
+      try { persistAllData(previousRecords, previousLifeRecords, "清空失败自动还原", previousCategories); } catch {}
       showToast("清空失败：本机存储不可用");
     }
   });
@@ -1588,6 +1718,7 @@ content.addEventListener("scroll", () => {
 
 state.records = loadRecords();
 state.lifeRecords = loadLifeRecords();
+state.collectionCategories = loadCollectionCategories(state.records);
 state.selectedYear = [...new Set([new Date().getFullYear(), ...state.records.map(yearOf)])].sort((a, b) => b - a)[0];
 if (!location.hash) history.replaceState(null, "", "#/dashboard");
 render();
