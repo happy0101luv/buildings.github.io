@@ -700,20 +700,6 @@ function todayValue() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function preorderQuarterOptions(selected = "") {
-  const currentYear = new Date().getFullYear();
-  const values = [];
-  for (let year = currentYear - 1; year <= currentYear + 4; year += 1) {
-    for (let quarter = 1; quarter <= 4; quarter += 1) values.push(`${year}-Q${quarter}`);
-  }
-  if (selected && !values.includes(selected)) values.push(selected);
-  return values.sort().map((value) => {
-    const match = value.match(/^(\d{4})-Q([1-4])$/);
-    const label = match ? `${match[1]} 年第 ${match[2]} 季度` : value;
-    return `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
-  }).join("");
-}
-
 function addView() {
   const existing = state.records.find((record) => String(record.id) === String(state.editingId));
   const source = existing || {};
@@ -743,7 +729,7 @@ function addView() {
       <label class="field preorder-stage-field" id="preorderStageField" ${isPreorder ? "" : "hidden"}><span>预定阶段</span><input type="hidden" name="preorderStage" value="${stage}" /><div class="preorder-stage-segment"><button type="button" data-preorder-stage="payment" class="${stage === "payment" ? "active" : ""}">待补款</button><button type="button" data-preorder-stage="arrival" class="${stage === "arrival" ? "active" : ""}">待到货</button></div></label>
       <div class="form-two"><label class="field"><span>数量</span><input name="quantity" type="number" min="1" step="1" value="${quantity(source)}" /></label><div class="field"><div class="field-heading"><span>总价（人民币）</span><button class="inline-toggle ${pricePending ? "active" : ""}" id="togglePricePending" type="button" ${isPreorder ? "" : "hidden"}>${pricePending ? "✓ 总价待定" : "+ 设为待定"}</button></div><input name="price" type="number" min="0" step="0.01" value="${priceValue}" placeholder="${pricePending ? "待定" : "0"}" ${pricePending ? "readonly" : ""} /><input name="pricePending" type="hidden" value="${pricePending ? "true" : "false"}" /></div></div>
       <label class="field" id="preorderPaidField" ${isPreorder ? "" : "hidden"}><span id="preorderPaidLabel">${pricePending ? "已付定金（人民币）" : "已支付（人民币）"}</span><input name="paid" type="number" min="0" step="0.01" value="${paidValue}" placeholder="${pricePending ? "填写定金金额，如 50" : "0"}" ${stage === "arrival" && !pricePending ? "readonly" : ""} /></label>
-      <div class="form-two preorder-date-row ${isPreorder ? "" : "single"}" id="preorderDateRow"><label class="field"><span>购买 / 预定日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label><div class="field expected-field" id="expectedField" ${isPreorder ? "" : "hidden"}><div class="field-heading"><span id="expectedFieldLabel">${stage === "arrival" ? "预计到货 <small>可选</small>" : "预计补款"}</span><button class="mode-toggle" id="toggleExpectedMode" type="button">${expectedMode === "quarter" ? "⇄ 按具体日期" : "⇄ 按季度/待定"}</button></div><input name="expectedMode" type="hidden" value="${expectedMode}" /><div class="date-picker-shell ${expectedDate ? "" : "is-empty"}" id="expectedDateShell" ${expectedMode === "date" ? "" : "hidden"}><span id="expectedDateText">${expectedDate ? escapeHtml(expectedDate) : "暂不确定"}</span><input name="expectedDate" type="date" value="${escapeHtml(expectedDate)}" aria-label="选择预计日期，当前暂不确定" /></div><select name="expectedQuarter" id="expectedQuarter" ${expectedMode === "quarter" ? "" : "hidden"}><option value="">选择预计季度</option>${preorderQuarterOptions(expectedQuarter)}</select></div></div>
+      <div class="form-two preorder-date-row ${isPreorder ? "" : "single"}" id="preorderDateRow"><label class="field"><span>购买 / 预定日期</span><input name="date" type="hidden" value="${escapeHtml(source.date || todayValue())}" /><div class="ant-date-picker-host" data-antd-date-picker data-input-name="date" data-placeholder="选择日期" data-allow-clear="false"></div></label><div class="field expected-field" id="expectedField" ${isPreorder ? "" : "hidden"}><div class="field-heading"><span id="expectedFieldLabel">${stage === "arrival" ? "预计到货 <small>可选</small>" : "预计补款"}</span><button class="mode-toggle" id="toggleExpectedMode" type="button">${expectedMode === "quarter" ? "⇄ 按具体日期" : "⇄ 按季度/待定"}</button></div><input name="expectedMode" type="hidden" value="${expectedMode}" /><input name="expectedDate" type="hidden" value="${escapeHtml(expectedDate)}" /><div class="ant-date-picker-host" id="expectedDatePicker" data-antd-date-picker data-input-name="expectedDate" data-placeholder="暂不确定" ${expectedMode === "date" ? "" : "hidden"}></div><input name="expectedQuarter" type="hidden" value="${escapeHtml(expectedQuarter)}" /><div class="ant-date-picker-host" id="expectedQuarterPicker" data-antd-date-picker data-input-name="expectedQuarter" data-picker="quarter" data-placeholder="选择预计季度" ${expectedMode === "quarter" ? "" : "hidden"}></div></div></div>
     </section>
     <section class="form-section"><p class="eyebrow">PRIVATE NOTE</p><h2 class="form-title">收藏备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="缺件、存放位置、版本状态…">${escapeHtml(source.note || "")}</textarea></label></section>
     <section class="form-section"><p class="eyebrow">PRODUCT IMAGE</p><h2 class="form-title">产品图片 <small>可选</small></h2>
@@ -771,7 +757,7 @@ function lifeAddView() {
       <label class="field"><span>支出名称<b>*</b></span><input name="name" required maxlength="80" value="${escapeHtml(source.name || "")}" placeholder="例如：午餐、房租、电影票" /></label>
       <label class="field"><span>支出分类<b>*</b></span><input type="hidden" name="category" value="${escapeHtml(category)}" /></label>
       <div class="quick-categories life-category-picks">${LIFE_EXPENSE_CATEGORIES.map((item) => `<button type="button" data-life-pick="${item}" class="${item === category ? "active" : ""}">${item}</button>`).join("")}</div>
-      <div class="form-two"><label class="field"><span>金额（人民币）<b>*</b></span><input name="amount" type="number" min="0.01" step="0.01" required value="${Number(source.amount || 0) || ""}" placeholder="0" /></label><label class="field"><span>支出日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label></div>
+      <div class="form-two"><label class="field"><span>金额（人民币）<b>*</b></span><input name="amount" type="number" min="0.01" step="0.01" required value="${Number(source.amount || 0) || ""}" placeholder="0" /></label><label class="field"><span>支出日期</span><input name="date" type="hidden" value="${escapeHtml(source.date || todayValue())}" /><div class="ant-date-picker-host" data-antd-date-picker data-input-name="date" data-placeholder="选择日期" data-allow-clear="false"></div></label></div>
     </section>
     <section class="form-section"><p class="eyebrow">EXPENSE NOTE</p><h2 class="form-title">支出备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="用途、付款方式、同行人…">${escapeHtml(source.note || "")}</textarea></label></section>
     <section class="form-section"><p class="eyebrow">RECEIPT IMAGE</p><h2 class="form-title">支出图片 <small>可选</small></h2>
@@ -800,7 +786,9 @@ function render() {
   floatingAdd.hidden = !["life", "dashboard", "collection"].includes(state.route);
   tabbar.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.route === state.route));
   const views = { life: lifeView, dashboard: dashboardView, collection: collectionView, profile: profileView, "collection-wall": collectionWallView, add: addView, "life-add": lifeAddView };
+  window.WanwuAntDatePicker?.unmountAll(content);
   content.innerHTML = views[state.route]();
+  window.WanwuAntDatePicker?.mountAll(content);
   content.scrollTop = 0;
   bindViewEvents();
   window.lucide?.createIcons?.();
@@ -1086,22 +1074,14 @@ function bindAddEvents() {
     content.querySelectorAll("[data-quick-category]").forEach((item) => item.classList.toggle("active", item === button));
   }));
 
-  const syncExpectedDateText = () => {
-    const value = form.elements.expectedDate?.value || "";
-    const label = content.querySelector("#expectedDateText");
-    if (label) label.textContent = value || "暂不确定";
-    content.querySelector("#expectedDateShell")?.classList.toggle("is-empty", !value);
-  };
-
   const syncExpectedMode = () => {
     const mode = form.elements.expectedMode?.value === "quarter" ? "quarter" : "date";
-    const dateShell = content.querySelector("#expectedDateShell");
-    const quarterSelect = content.querySelector("#expectedQuarter");
+    const datePicker = content.querySelector("#expectedDatePicker");
+    const quarterPicker = content.querySelector("#expectedQuarterPicker");
     const toggle = content.querySelector("#toggleExpectedMode");
-    if (dateShell) dateShell.hidden = mode !== "date";
-    if (quarterSelect) quarterSelect.hidden = mode !== "quarter";
+    if (datePicker) datePicker.hidden = mode !== "date";
+    if (quarterPicker) quarterPicker.hidden = mode !== "quarter";
     if (toggle) toggle.textContent = mode === "quarter" ? "⇄ 按具体日期" : "⇄ 按季度/待定";
-    syncExpectedDateText();
   };
 
   const syncPreorderControls = () => {
@@ -1184,13 +1164,6 @@ function bindAddEvents() {
     form.elements.expectedMode.value = form.elements.expectedMode.value === "quarter" ? "date" : "quarter";
     syncExpectedMode();
   });
-  content.querySelector("#expectedDateShell")?.addEventListener("click", () => {
-    const dateInput = form.elements.expectedDate;
-    if (typeof dateInput?.showPicker === "function") {
-      try { dateInput.showPicker(); } catch {}
-    }
-  });
-  form.elements.expectedDate?.addEventListener("change", syncExpectedDateText);
   content.querySelectorAll("[data-sale-status]").forEach((button) => button.addEventListener("click", () => {
     const isSold = button.dataset.saleStatus === "已卖出";
     form.elements.status.value = button.dataset.saleStatus;

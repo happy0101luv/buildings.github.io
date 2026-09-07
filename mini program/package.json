@@ -1,0 +1,16 @@
+{
+  "name": "wanwu-mini-program-date-picker",
+  "private": true,
+  "scripts": {
+    "build": "esbuild antd-date-picker.jsx --bundle --minify --format=iife --target=es2020 --jsx=automatic --outfile=antd-date-picker.bundle.js"
+  },
+  "dependencies": {
+    "antd": "6.6.3",
+    "dayjs": "1.11.23",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
