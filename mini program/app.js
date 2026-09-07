@@ -286,7 +286,17 @@ function paidAmount(record) {
 }
 
 function dueAmount(record) {
-  return record.status === "预定中" ? Math.max(0, recordPrice(record) - paidAmount(record)) : 0;
+  if (record.status !== "预定中" || record.pricePending) return 0;
+  return Math.max(0, recordPrice(record) - paidAmount(record));
+}
+
+function preorderStage(record) {
+  return MiniProgramData.collectionPreorderStage(record);
+}
+
+function preorderStageLabel(record) {
+  if (record.status !== "预定中") return record.status || "已入库";
+  return preorderStage(record) === "arrival" ? "待到货" : "待补款";
 }
 
 function yearOf(record) {
@@ -363,7 +373,9 @@ function recordCard(record) {
   const profit = isSold ? saleProfit(record) : 0;
   const sideValue = isSold
     ? `<strong class="sale-result ${profitClass(profit)}" aria-label="售出盈亏">${signedMoney(profit)}</strong>`
-    : `<strong>¥${formatMoney(price)}</strong>`;
+    : record.pricePending
+      ? `<strong class="price-pending-value">价格待定</strong>`
+      : `<strong>¥${formatMoney(price)}</strong>`;
   return `
     <article class="record-card" data-record-id="${escapeHtml(record.id)}" tabindex="0" role="button" aria-label="编辑 ${escapeHtml(record.name)}">
       <div class="record-image">
@@ -375,7 +387,7 @@ function recordCard(record) {
         <time>${record.status === "预定中" ? "预定于" : "入库于"} ${escapeHtml(formatDate(record.date))}</time>
       </div>
       <div class="record-side">
-        <span class="status-badge${record.status === "预定中" ? " preorder" : isSold ? " sold" : ""}">${escapeHtml(record.status || "已入库")}</span>
+        <span class="status-badge${record.status === "预定中" ? " preorder" : isSold ? " sold" : ""}">${escapeHtml(preorderStageLabel(record))}</span>
         ${sideValue}
       </div>
     </article>`;
@@ -553,8 +565,8 @@ function dashboardView() {
   const totalPaid = records.reduce((sum, record) => sum + paidAmount(record), 0);
   const count = records.reduce((sum, record) => sum + quantity(record), 0);
   const preorders = records.filter((record) => record.status === "预定中");
-  const paymentPending = preorders.filter((record) => record.preorderStage !== "arrival" && dueAmount(record) > 0);
-  const arrivalPending = preorders.filter((record) => record.preorderStage === "arrival" || dueAmount(record) <= 0);
+  const paymentPending = preorders.filter((record) => preorderStage(record) === "payment");
+  const arrivalPending = preorders.filter((record) => preorderStage(record) === "arrival");
   const due = preorders.reduce((sum, record) => sum + dueAmount(record), 0);
   const months = Array.from({ length: 12 }, (_, index) => {
     const items = yearRecords.filter((record) => Number(String(record.date || "").slice(5, 7)) === index + 1);
@@ -688,12 +700,34 @@ function todayValue() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+function preorderQuarterOptions(selected = "") {
+  const currentYear = new Date().getFullYear();
+  const values = [];
+  for (let year = currentYear - 1; year <= currentYear + 4; year += 1) {
+    for (let quarter = 1; quarter <= 4; quarter += 1) values.push(`${year}-Q${quarter}`);
+  }
+  if (selected && !values.includes(selected)) values.push(selected);
+  return values.sort().map((value) => {
+    const match = value.match(/^(\d{4})-Q([1-4])$/);
+    const label = match ? `${match[1]} 年第 ${match[2]} 季度` : value;
+    return `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
 function addView() {
   const existing = state.records.find((record) => String(record.id) === String(state.editingId));
   const source = existing || {};
   if (!state.uploadImage) state.uploadImage = source.imageUrl || source.catalogCoverImage || "";
   const category = source.category || "高达模型";
   const status = source.status || "已入库";
+  const isPreorder = status === "预定中";
+  const stage = preorderStage(source) || "payment";
+  const pricePending = isPreorder && Boolean(source.pricePending);
+  const expectedMode = source.expectedMode === "quarter" || source.expectedQuarter ? "quarter" : "date";
+  const expectedDate = source.expectedDate || (stage === "payment" ? source.dueDate : source.arrivalDate) || "";
+  const expectedQuarter = source.expectedQuarter || (stage === "payment" ? source.dueQuarter : source.arrivalQuarter) || "";
+  const priceValue = pricePending ? "" : (recordPrice(source) || "");
+  const paidValue = Number.isFinite(Number(source.paid)) ? Number(source.paid) : 0;
   const image = normalizeAssetUrl(state.uploadImage);
   return `<form class="page form-page" id="collectionForm">
     <section class="form-section">
@@ -706,8 +740,10 @@ function addView() {
     <section class="form-section">
       <p class="eyebrow">PURCHASE STATUS</p><h2 class="form-title">购买状态</h2>
       <label class="field"><span>收藏状态</span><input type="hidden" name="status" value="${escapeHtml(status)}" /><div class="status-segment"><button type="button" data-form-status="已入库" class="${status === "已入库" || status === "已卖出" ? "active" : ""}">已入库</button><button type="button" data-form-status="预定中" class="${status === "预定中" ? "active" : ""}">预定中</button></div></label>
-      <div class="form-two"><label class="field"><span>数量</span><input name="quantity" type="number" min="1" step="1" value="${quantity(source)}" /></label><label class="field"><span>总价（人民币）</span><input name="price" type="number" min="0" step="0.01" value="${recordPrice(source) || ""}" placeholder="0" /></label></div>
-      <label class="field"><span>购买 / 预定日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label>
+      <label class="field preorder-stage-field" id="preorderStageField" ${isPreorder ? "" : "hidden"}><span>预定阶段</span><input type="hidden" name="preorderStage" value="${stage}" /><div class="preorder-stage-segment"><button type="button" data-preorder-stage="payment" class="${stage === "payment" ? "active" : ""}">待补款</button><button type="button" data-preorder-stage="arrival" class="${stage === "arrival" ? "active" : ""}">待到货</button></div></label>
+      <div class="form-two"><label class="field"><span>数量</span><input name="quantity" type="number" min="1" step="1" value="${quantity(source)}" /></label><div class="field"><div class="field-heading"><span>总价（人民币）</span><button class="inline-toggle ${pricePending ? "active" : ""}" id="togglePricePending" type="button" ${isPreorder ? "" : "hidden"}>${pricePending ? "✓ 总价待定" : "+ 设为待定"}</button></div><input name="price" type="number" min="0" step="0.01" value="${priceValue}" placeholder="${pricePending ? "待定" : "0"}" ${pricePending ? "readonly" : ""} /><input name="pricePending" type="hidden" value="${pricePending ? "true" : "false"}" /></div></div>
+      <label class="field" id="preorderPaidField" ${isPreorder ? "" : "hidden"}><span id="preorderPaidLabel">${pricePending ? "已付定金（人民币）" : "已支付（人民币）"}</span><input name="paid" type="number" min="0" step="0.01" value="${paidValue}" placeholder="${pricePending ? "填写定金金额，如 50" : "0"}" ${stage === "arrival" && !pricePending ? "readonly" : ""} /></label>
+      <div class="form-two preorder-date-row ${isPreorder ? "" : "single"}" id="preorderDateRow"><label class="field"><span>购买 / 预定日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label><div class="field expected-field" id="expectedField" ${isPreorder ? "" : "hidden"}><div class="field-heading"><span id="expectedFieldLabel">${stage === "arrival" ? "预计到货 <small>可选</small>" : "预计补款"}</span><button class="mode-toggle" id="toggleExpectedMode" type="button">${expectedMode === "quarter" ? "⇄ 按具体日期" : "⇄ 按季度/待定"}</button></div><input name="expectedMode" type="hidden" value="${expectedMode}" /><div class="date-picker-shell" id="expectedDateShell" ${expectedMode === "date" ? "" : "hidden"}><span id="expectedDateText">${expectedDate ? escapeHtml(expectedDate) : (stage === "arrival" ? "暂不确定" : "选择日期")}</span><input name="expectedDate" type="date" value="${escapeHtml(expectedDate)}" aria-label="选择预计日期" /></div><select name="expectedQuarter" id="expectedQuarter" ${expectedMode === "quarter" ? "" : "hidden"}><option value="">选择预计季度</option>${preorderQuarterOptions(expectedQuarter)}</select></div></div>
     </section>
     <section class="form-section"><p class="eyebrow">PRIVATE NOTE</p><h2 class="form-title">收藏备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="缺件、存放位置、版本状态…">${escapeHtml(source.note || "")}</textarea></label></section>
     <section class="form-section"><p class="eyebrow">PRODUCT IMAGE</p><h2 class="form-title">产品图片 <small>可选</small></h2>
@@ -1049,6 +1085,64 @@ function bindAddEvents() {
     form.elements.category.value = button.dataset.quickCategory;
     content.querySelectorAll("[data-quick-category]").forEach((item) => item.classList.toggle("active", item === button));
   }));
+
+  const syncExpectedDateText = () => {
+    const stage = form.elements.preorderStage?.value || "payment";
+    const value = form.elements.expectedDate?.value || "";
+    const label = content.querySelector("#expectedDateText");
+    if (label) label.textContent = value || (stage === "arrival" ? "暂不确定" : "选择日期");
+  };
+
+  const syncExpectedMode = () => {
+    const mode = form.elements.expectedMode?.value === "quarter" ? "quarter" : "date";
+    const dateShell = content.querySelector("#expectedDateShell");
+    const quarterSelect = content.querySelector("#expectedQuarter");
+    const toggle = content.querySelector("#toggleExpectedMode");
+    if (dateShell) dateShell.hidden = mode !== "date";
+    if (quarterSelect) quarterSelect.hidden = mode !== "quarter";
+    if (toggle) toggle.textContent = mode === "quarter" ? "⇄ 按具体日期" : "⇄ 按季度/待定";
+    syncExpectedDateText();
+  };
+
+  const syncPreorderControls = () => {
+    const isPreorder = form.elements.status.value === "预定中";
+    const stage = form.elements.preorderStage?.value === "arrival" ? "arrival" : "payment";
+    const pricePending = isPreorder && form.elements.pricePending?.value === "true";
+    const priceInput = form.elements.price;
+    const paidInput = form.elements.paid;
+    const stageField = content.querySelector("#preorderStageField");
+    const paidField = content.querySelector("#preorderPaidField");
+    const expectedField = content.querySelector("#expectedField");
+    const dateRow = content.querySelector("#preorderDateRow");
+    const priceToggle = content.querySelector("#togglePricePending");
+    if (stageField) stageField.hidden = !isPreorder;
+    if (paidField) paidField.hidden = !isPreorder;
+    if (expectedField) expectedField.hidden = !isPreorder;
+    if (dateRow) dateRow.classList.toggle("single", !isPreorder);
+    if (priceToggle) {
+      priceToggle.hidden = !isPreorder;
+      priceToggle.classList.toggle("active", pricePending);
+      priceToggle.textContent = pricePending ? "✓ 总价待定" : "+ 设为待定";
+    }
+    if (!isPreorder && form.elements.pricePending) form.elements.pricePending.value = "false";
+    if (priceInput) {
+      priceInput.readOnly = pricePending;
+      priceInput.placeholder = pricePending ? "待定" : "0";
+    }
+    if (paidInput) {
+      const lockPaid = isPreorder && stage === "arrival" && !pricePending;
+      if (lockPaid) paidInput.value = priceInput?.value || "0";
+      paidInput.readOnly = lockPaid;
+      paidInput.placeholder = pricePending ? "填写定金金额，如 50" : "0";
+    }
+    const paidLabel = content.querySelector("#preorderPaidLabel");
+    if (paidLabel) paidLabel.textContent = pricePending ? "已付定金（人民币）" : "已支付（人民币）";
+    const expectedLabel = content.querySelector("#expectedFieldLabel");
+    if (expectedLabel) expectedLabel.innerHTML = stage === "arrival" ? "预计到货 <small>可选</small>" : "预计补款";
+    content.querySelectorAll("[data-preorder-stage]").forEach((item) => item.classList.toggle("active", item.dataset.preorderStage === stage));
+    syncExpectedMode();
+  };
+
   content.querySelectorAll("[data-form-status]").forEach((button) => button.addEventListener("click", () => {
     form.elements.status.value = button.dataset.formStatus;
     content.querySelectorAll("[data-form-status]").forEach((item) => item.classList.toggle("active", item === button));
@@ -1059,7 +1153,38 @@ function bindAddEvents() {
     const saleEditor = content.querySelector("#saleEditor");
     if (saleEditor) saleEditor.hidden = button.dataset.formStatus === "预定中";
     content.querySelectorAll("[data-sale-status]").forEach((item) => item.classList.toggle("active", item.dataset.saleStatus === "已入库"));
+    syncPreorderControls();
   }));
+  content.querySelectorAll("[data-preorder-stage]").forEach((button) => button.addEventListener("click", () => {
+    form.elements.preorderStage.value = button.dataset.preorderStage;
+    syncPreorderControls();
+  }));
+  content.querySelector("#togglePricePending")?.addEventListener("click", () => {
+    if (form.elements.status.value !== "预定中") return;
+    const priceInput = form.elements.price;
+    const isPending = form.elements.pricePending.value === "true";
+    if (isPending) {
+      form.elements.pricePending.value = "false";
+      priceInput.value = priceInput.dataset.lastKnownPrice || "";
+      syncPreorderControls();
+      priceInput.focus();
+    } else {
+      priceInput.dataset.lastKnownPrice = priceInput.value;
+      priceInput.value = "";
+      form.elements.pricePending.value = "true";
+      syncPreorderControls();
+    }
+  });
+  form.elements.price?.addEventListener("input", () => {
+    if (form.elements.status.value === "预定中" && form.elements.preorderStage?.value === "arrival" && form.elements.pricePending?.value !== "true") {
+      form.elements.paid.value = form.elements.price.value || "0";
+    }
+  });
+  content.querySelector("#toggleExpectedMode")?.addEventListener("click", () => {
+    form.elements.expectedMode.value = form.elements.expectedMode.value === "quarter" ? "date" : "quarter";
+    syncExpectedMode();
+  });
+  form.elements.expectedDate?.addEventListener("change", syncExpectedDateText);
   content.querySelectorAll("[data-sale-status]").forEach((button) => button.addEventListener("click", () => {
     const isSold = button.dataset.saleStatus === "已卖出";
     form.elements.status.value = button.dataset.saleStatus;
@@ -1072,7 +1197,9 @@ function bindAddEvents() {
       soldPriceInput.required = isSold;
       if (isSold) soldPriceInput.focus();
     }
+    syncPreorderControls();
   }));
+  syncPreorderControls();
   content.querySelector("#chooseImage")?.addEventListener("click", () => content.querySelector("#imageFile")?.click());
   content.querySelector("#imageFile")?.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
@@ -1098,9 +1225,22 @@ function bindAddEvents() {
     if (!name || !series) return showToast("请填写藏品名称和厂牌 / 系列");
     const existing = state.records.find((record) => String(record.id) === String(state.editingId));
     const status = String(data.get("status") || "已入库");
-    const price = Math.max(0, Number(data.get("price") || 0));
+    const isPreorder = status === "预定中";
+    const pricePending = isPreorder && data.get("pricePending") === "true";
+    const price = pricePending ? null : Math.max(0, Number(data.get("price") || 0));
+    const stage = isPreorder && data.get("preorderStage") === "arrival" ? "arrival" : isPreorder ? "payment" : "";
+    const enteredPaid = Math.max(0, Number(data.get("paid") || 0));
+    const paid = ["已入库", "已卖出"].includes(status)
+      ? Number(price || 0)
+      : stage === "arrival" && !pricePending
+        ? Number(price || 0)
+        : enteredPaid;
+    const expectedMode = isPreorder && data.get("expectedMode") === "quarter" ? "quarter" : "date";
+    const expectedDate = isPreorder && expectedMode === "date" ? String(data.get("expectedDate") || "") : "";
+    const expectedQuarter = isPreorder && expectedMode === "quarter" ? String(data.get("expectedQuarter") || "") : "";
     const saleAmount = Math.max(0, Number(data.get("soldPrice") || 0));
     if (status === "已卖出" && !String(data.get("soldPrice") || "").trim()) return showToast("请填写卖出价格");
+    if (!pricePending && isPreorder && paid > Number(price || 0)) return showToast("已支付金额不能高于总价");
     const next = {
       ...(existing || {}),
       id: existing?.id || (crypto.randomUUID?.() || `local-${Date.now()}`),
@@ -1108,11 +1248,20 @@ function bindAddEvents() {
       category: String(data.get("category") || "高达模型").trim() || "高达模型",
       series,
       status,
+      preorderStage: stage,
       quantity: Math.max(1, Math.floor(Number(data.get("quantity") || 1))),
       price,
-      paid: ["已入库", "已卖出"].includes(status) ? price : Number(existing?.paid || 0),
+      pricePending,
+      paid,
       soldPrice: status === "已卖出" ? saleAmount : null,
       date: String(data.get("date") || todayValue()),
+      expectedMode: isPreorder ? expectedMode : "",
+      expectedDate,
+      expectedQuarter,
+      dueDate: stage === "payment" && expectedMode === "date" ? expectedDate : "",
+      dueQuarter: stage === "payment" && expectedMode === "quarter" ? expectedQuarter : "",
+      arrivalDate: stage === "arrival" && expectedMode === "date" ? expectedDate : "",
+      arrivalQuarter: stage === "arrival" && expectedMode === "quarter" ? expectedQuarter : "",
       note: String(data.get("note") || "").trim(),
       imageUrl: state.uploadImage || "",
       catalogId: existing?.catalogId || "",

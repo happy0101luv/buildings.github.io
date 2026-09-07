@@ -17,9 +17,14 @@
       record?.series,
       record?.status,
       record?.quantity || 1,
+      record?.pricePending ? "price-pending" : "price-known",
       record?.price ?? record?.totalPrice ?? 0,
+      record?.paid ?? 0,
       record?.soldPrice ?? "",
       record?.date,
+      record?.expectedMode,
+      record?.expectedDate,
+      record?.expectedQuarter,
     ].map(normalizedText).join("\u001f");
   }
 
@@ -111,9 +116,18 @@
   }
 
   function collectionDueAmount(record) {
-    if (record?.status !== "预定中") return 0;
+    if (record?.status !== "预定中" || record?.pricePending) return 0;
     const price = Number(record?.price ?? record?.totalPrice ?? 0);
     return Math.max(0, (Number.isFinite(price) ? price : 0) - collectionPaidAmount(record));
+  }
+
+  function collectionPreorderStage(record) {
+    if (record?.status !== "预定中") return "";
+    const explicit = String(record?.preorderStage || "").trim();
+    if (["payment", "payment_pending"].includes(explicit)) return "payment";
+    if (["arrival", "arrival_pending"].includes(explicit)) return "arrival";
+    if (record?.pricePending) return "payment";
+    return collectionDueAmount(record) > 0 ? "payment" : "arrival";
   }
 
   function matchesCollectionStatus(record, statuses) {
@@ -121,8 +135,8 @@
     return statuses.some((status) => {
       if (status === "已入库") return record?.status === "已入库";
       if (status === "已卖出") return record?.status === "已卖出";
-      if (status === "待补款") return record?.status === "预定中" && record?.preorderStage !== "arrival" && collectionDueAmount(record) > 0;
-      if (status === "待到货") return record?.status === "预定中" && (record?.preorderStage === "arrival" || collectionDueAmount(record) <= 0);
+      if (status === "待补款") return collectionPreorderStage(record) === "payment";
+      if (status === "待到货") return collectionPreorderStage(record) === "arrival";
       return false;
     });
   }
@@ -147,8 +161,8 @@
       summary.totalCount += itemQuantity;
       summary.totalPaid += collectionPaidAmount(record);
       summary.totalDue += due;
-      if (record?.status === "预定中" && record?.preorderStage !== "arrival" && due > 0) summary.paymentPendingCount += 1;
-      if (record?.status === "预定中" && (record?.preorderStage === "arrival" || due <= 0)) summary.arrivalPendingCount += 1;
+      if (collectionPreorderStage(record) === "payment") summary.paymentPendingCount += 1;
+      if (collectionPreorderStage(record) === "arrival") summary.arrivalPendingCount += 1;
       return summary;
     }, { totalCount: 0, totalPaid: 0, totalDue: 0, paymentPendingCount: 0, arrivalPendingCount: 0 });
   }
@@ -162,6 +176,7 @@
   globalScope.MiniProgramData = {
     collectionScopeLabel,
     filterCollectionRecords,
+    collectionPreorderStage,
     mergeCategoryConfigs,
     mergeRecords,
     matchesCollectionStatus,

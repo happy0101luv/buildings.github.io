@@ -30,6 +30,7 @@ button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 img { display: block; max-width: 100%; }
+[hidden] { display: none !important; }
 
 .phone-shell {
   position: relative;
@@ -289,6 +290,7 @@ img { display: block; max-width: 100%; }
 .record-side .sale-result.profit { color: var(--green); }
 .record-side .sale-result.loss { color: var(--red); }
 .record-side .sale-result.even { color: var(--muted); }
+.record-side .price-pending-value { color: var(--muted); font-size: 11px; }
 
 .onboarding { padding: 76px 6px 0; }
 .onboarding .eyebrow { font-size: 13px; letter-spacing: 1.2px; }
@@ -566,8 +568,16 @@ img { display: block; max-width: 100%; }
 .field input, .field select { height: 48px; padding: 0 12px; }
 .field input[type="date"] { width: 100%; min-width: 0; -webkit-appearance: none; appearance: none; }
 .field input[type="date"]::-webkit-date-and-time-value { min-width: 0; text-align: left; }
+.field input[readonly] { background: #f3f0ea; color: #8c867e; }
 .field textarea { min-height: 150px; padding: 12px; resize: vertical; }
 .field input::placeholder, .field textarea::placeholder { color: var(--soft); }
+.field-heading { min-height: 27px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.field-heading > span { min-width: 0; }
+.field-heading small { font-size: 10px; font-weight: 500; }
+.inline-toggle, .mode-toggle { flex: 0 0 auto; min-height: 26px; padding: 0 9px; border: 1px solid #d0c9bf; border-radius: 14px; background: #fff; color: #2d2925; font-size: 10px; font-weight: 850; box-shadow: 0 2px 5px rgba(33, 27, 23, .07); }
+.inline-toggle { border-color: #eda7a4; color: var(--red); }
+.inline-toggle.active { border-color: var(--red); background: var(--red); color: #fff; }
+.mode-toggle { padding-inline: 8px; }
 .quick-categories { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 7px; }
 .quick-categories button { height: 35px; border: 0; border-radius: 5px; background: #f1efeb; font-size: 12px; font-weight: 750; }
 .quick-categories button.active { background: #171411; color: #fff; }
@@ -575,8 +585,15 @@ img { display: block; max-width: 100%; }
 .status-segment { display: grid; grid-template-columns: repeat(2, 1fr); padding: 3px; border: 1px solid #d3cfc8; border-radius: 7px; background: #ebe8e2; }
 .status-segment button { height: 40px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 850; }
 .status-segment button.active { background: #151210; color: #fff; }
+.preorder-stage-segment { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 3px; border: 1px solid #d3cfc8; border-radius: 7px; background: #ebe8e2; }
+.preorder-stage-segment button { height: 40px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 850; }
+.preorder-stage-segment button.active { background: var(--red); color: #fff; box-shadow: 0 3px 8px rgba(201, 39, 45, .18); }
 .form-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .form-two > * { min-width: 0; }
+.form-two.single { grid-template-columns: 1fr; }
+.date-picker-shell { position: relative; width: 100%; height: 48px; display: flex; align-items: center; padding: 0 12px; overflow: hidden; border: 1px solid #dededc; border-radius: 6px; background: #fff; color: #111; font-size: 16px; }
+.date-picker-shell > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.date-picker-shell > input[type="date"] { position: absolute; inset: 0; z-index: 2; height: 100%; opacity: 0; cursor: pointer; }
 .sale-hint { margin: 7px 0 0; color: var(--muted); font-size: 10px; }
 .sale-editor { margin: 0 0 12px; padding: 15px; border: 1px solid #ef9d9a; border-radius: 7px; background: #fff7f6; }
 .sale-editor-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
