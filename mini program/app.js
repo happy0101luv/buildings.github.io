@@ -743,7 +743,7 @@ function addView() {
       <label class="field preorder-stage-field" id="preorderStageField" ${isPreorder ? "" : "hidden"}><span>预定阶段</span><input type="hidden" name="preorderStage" value="${stage}" /><div class="preorder-stage-segment"><button type="button" data-preorder-stage="payment" class="${stage === "payment" ? "active" : ""}">待补款</button><button type="button" data-preorder-stage="arrival" class="${stage === "arrival" ? "active" : ""}">待到货</button></div></label>
       <div class="form-two"><label class="field"><span>数量</span><input name="quantity" type="number" min="1" step="1" value="${quantity(source)}" /></label><div class="field"><div class="field-heading"><span>总价（人民币）</span><button class="inline-toggle ${pricePending ? "active" : ""}" id="togglePricePending" type="button" ${isPreorder ? "" : "hidden"}>${pricePending ? "✓ 总价待定" : "+ 设为待定"}</button></div><input name="price" type="number" min="0" step="0.01" value="${priceValue}" placeholder="${pricePending ? "待定" : "0"}" ${pricePending ? "readonly" : ""} /><input name="pricePending" type="hidden" value="${pricePending ? "true" : "false"}" /></div></div>
       <label class="field" id="preorderPaidField" ${isPreorder ? "" : "hidden"}><span id="preorderPaidLabel">${pricePending ? "已付定金（人民币）" : "已支付（人民币）"}</span><input name="paid" type="number" min="0" step="0.01" value="${paidValue}" placeholder="${pricePending ? "填写定金金额，如 50" : "0"}" ${stage === "arrival" && !pricePending ? "readonly" : ""} /></label>
-      <div class="form-two preorder-date-row ${isPreorder ? "" : "single"}" id="preorderDateRow"><label class="field"><span>购买 / 预定日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label><div class="field expected-field" id="expectedField" ${isPreorder ? "" : "hidden"}><div class="field-heading"><span id="expectedFieldLabel">${stage === "arrival" ? "预计到货 <small>可选</small>" : "预计补款"}</span><button class="mode-toggle" id="toggleExpectedMode" type="button">${expectedMode === "quarter" ? "⇄ 按具体日期" : "⇄ 按季度/待定"}</button></div><input name="expectedMode" type="hidden" value="${expectedMode}" /><div class="date-picker-shell" id="expectedDateShell" ${expectedMode === "date" ? "" : "hidden"}><span id="expectedDateText">${expectedDate ? escapeHtml(expectedDate) : "暂不确定"}</span><input name="expectedDate" type="date" value="${escapeHtml(expectedDate)}" aria-label="选择预计日期，当前暂不确定" /></div><select name="expectedQuarter" id="expectedQuarter" ${expectedMode === "quarter" ? "" : "hidden"}><option value="">选择预计季度</option>${preorderQuarterOptions(expectedQuarter)}</select></div></div>
+      <div class="form-two preorder-date-row ${isPreorder ? "" : "single"}" id="preorderDateRow"><label class="field"><span>购买 / 预定日期</span><input name="date" type="date" value="${escapeHtml(source.date || todayValue())}" /></label><div class="field expected-field" id="expectedField" ${isPreorder ? "" : "hidden"}><div class="field-heading"><span id="expectedFieldLabel">${stage === "arrival" ? "预计到货 <small>可选</small>" : "预计补款"}</span><button class="mode-toggle" id="toggleExpectedMode" type="button">${expectedMode === "quarter" ? "⇄ 按具体日期" : "⇄ 按季度/待定"}</button></div><input name="expectedMode" type="hidden" value="${expectedMode}" /><div class="date-picker-shell ${expectedDate ? "" : "is-empty"}" id="expectedDateShell" ${expectedMode === "date" ? "" : "hidden"}><span id="expectedDateText">${expectedDate ? escapeHtml(expectedDate) : "暂不确定"}</span><input name="expectedDate" type="date" value="${escapeHtml(expectedDate)}" aria-label="选择预计日期，当前暂不确定" /></div><select name="expectedQuarter" id="expectedQuarter" ${expectedMode === "quarter" ? "" : "hidden"}><option value="">选择预计季度</option>${preorderQuarterOptions(expectedQuarter)}</select></div></div>
     </section>
     <section class="form-section"><p class="eyebrow">PRIVATE NOTE</p><h2 class="form-title">收藏备注 <small>可选</small></h2><label class="field"><textarea name="note" maxlength="800" placeholder="缺件、存放位置、版本状态…">${escapeHtml(source.note || "")}</textarea></label></section>
     <section class="form-section"><p class="eyebrow">PRODUCT IMAGE</p><h2 class="form-title">产品图片 <small>可选</small></h2>
@@ -1087,10 +1087,10 @@ function bindAddEvents() {
   }));
 
   const syncExpectedDateText = () => {
-    const stage = form.elements.preorderStage?.value || "payment";
     const value = form.elements.expectedDate?.value || "";
     const label = content.querySelector("#expectedDateText");
     if (label) label.textContent = value || "暂不确定";
+    content.querySelector("#expectedDateShell")?.classList.toggle("is-empty", !value);
   };
 
   const syncExpectedMode = () => {
@@ -1183,6 +1183,12 @@ function bindAddEvents() {
   content.querySelector("#toggleExpectedMode")?.addEventListener("click", () => {
     form.elements.expectedMode.value = form.elements.expectedMode.value === "quarter" ? "date" : "quarter";
     syncExpectedMode();
+  });
+  content.querySelector("#expectedDateShell")?.addEventListener("click", () => {
+    const dateInput = form.elements.expectedDate;
+    if (typeof dateInput?.showPicker === "function") {
+      try { dateInput.showPicker(); } catch {}
+    }
   });
   form.elements.expectedDate?.addEventListener("change", syncExpectedDateText);
   content.querySelectorAll("[data-sale-status]").forEach((button) => button.addEventListener("click", () => {

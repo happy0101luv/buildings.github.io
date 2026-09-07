@@ -594,6 +594,7 @@ img { display: block; max-width: 100%; }
 .form-two.single { grid-template-columns: 1fr; }
 .date-picker-shell { position: relative; width: 100%; height: 48px; display: flex; align-items: center; padding: 0 12px; overflow: hidden; border: 1px solid #dededc; border-radius: 6px; background: #fff; color: #111; font-size: 16px; }
 .date-picker-shell > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.date-picker-shell.is-empty > span { color: var(--soft); }
 .date-picker-shell > input[type="date"] { position: absolute; inset: 0; z-index: 2; height: 100%; opacity: 0; cursor: pointer; }
 .sale-hint { margin: 7px 0 0; color: var(--muted); font-size: 10px; }
 .sale-editor { margin: 0 0 12px; padding: 15px; border: 1px solid #ef9d9a; border-radius: 7px; background: #fff7f6; }
