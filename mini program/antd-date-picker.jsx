@@ -52,6 +52,14 @@ function PickerIsland({ host }) {
           controlHeight: 48,
           fontFamily: "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         },
+        components: {
+          DatePicker: {
+            cellHeight: 24,
+            cellWidth: 36,
+            textHeight: 40,
+            withoutTimeCellHeight: 66,
+          },
+        },
       }}
     >
       <DatePicker
@@ -96,4 +104,3 @@ function unmountAll(scope = document) {
 }
 
 window.WanwuAntDatePicker = Object.freeze({ mountAll, unmountAll });
-
