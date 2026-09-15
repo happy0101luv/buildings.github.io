@@ -310,6 +310,9 @@ img { display: block; max-width: 100%; }
 .investment-card { min-height: 193px; padding-top: 18px; }
 .investment-card .big-money { margin: 20px 0 8px; font-size: 46px; line-height: 1; font-weight: 900; letter-spacing: -2px; }
 .investment-card .big-money b { color: var(--red); font-size: 24px; }
+.investment-card .big-money.sale-headline.profit, .investment-card .big-money.sale-headline.profit b { color: #62bd82; }
+.investment-card .big-money.sale-headline.loss, .investment-card .big-money.sale-headline.loss b { color: #ff4d51; }
+.investment-card .big-money.sale-headline.even, .investment-card .big-money.sale-headline.even b { color: #b9b5af; }
 .investment-card > p { margin: 0; color: #aaa5a0; font-size: 13px; }
 .investment-pill { position: absolute; top: 16px; right: 16px; max-width: 62%; overflow: hidden; padding: 5px 10px; border: 1px solid #4d4946; border-radius: 16px; color: #b9b5af; font-size: 11px; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; }
 .investment-split { display: grid; grid-template-columns: 1fr 1fr; margin-top: 15px; padding-top: 11px; border-top: 1px solid #353230; }

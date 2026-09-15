@@ -192,23 +192,50 @@
   }
 
   function summarizeCollectionRecords(records) {
-    return (Array.isArray(records) ? records : []).reduce((summary, record) => {
+    const summary = (Array.isArray(records) ? records : []).reduce((result, record) => {
       const parsedQuantity = Math.floor(Number(record?.quantity || 1));
       const itemQuantity = Number.isFinite(parsedQuantity) && parsedQuantity > 0 ? parsedQuantity : 1;
+      const paid = collectionPaidAmount(record);
       const due = collectionDueAmount(record);
-      summary.totalCount += itemQuantity;
-      summary.totalPaid += collectionPaidAmount(record);
-      summary.totalDue += due;
-      if (collectionPreorderStage(record) === "payment") summary.paymentPendingCount += 1;
-      if (collectionPreorderStage(record) === "arrival") summary.arrivalPendingCount += 1;
-      return summary;
-    }, { totalCount: 0, totalPaid: 0, totalDue: 0, paymentPendingCount: 0, arrivalPendingCount: 0 });
+      result.totalCount += itemQuantity;
+      result.totalPaid += paid;
+      result.totalDue += due;
+      if (record?.status === "已卖出") {
+        const cost = Number(record?.price ?? record?.totalPrice ?? paid);
+        const revenue = Number(record?.soldPrice ?? 0);
+        const safeCost = Number.isFinite(cost) ? cost : paid;
+        const safeRevenue = Number.isFinite(revenue) ? revenue : 0;
+        result.soldCount += itemQuantity;
+        result.soldCost += safeCost;
+        result.soldRevenue += safeRevenue;
+        result.realizedProfit += safeRevenue - safeCost;
+      } else {
+        result.currentInvestment += paid;
+      }
+      if (collectionPreorderStage(record) === "payment") result.paymentPendingCount += 1;
+      if (collectionPreorderStage(record) === "arrival") result.arrivalPendingCount += 1;
+      return result;
+    }, {
+      totalCount: 0,
+      totalPaid: 0,
+      totalDue: 0,
+      currentInvestment: 0,
+      soldCount: 0,
+      soldCost: 0,
+      soldRevenue: 0,
+      realizedProfit: 0,
+      paymentPendingCount: 0,
+      arrivalPendingCount: 0,
+    });
+    summary.netInvestment = summary.currentInvestment - summary.realizedProfit;
+    return summary;
   }
 
   function collectionScopeLabel(status, category) {
     const statusLabel = status === "全部" ? "" : String(status || "").trim();
     const categoryLabel = category === "全部分类" ? "" : String(category || "").trim();
-    return `${[statusLabel, categoryLabel].filter(Boolean).join(" · ") || "全部"}收藏投入`;
+    const scope = [statusLabel, categoryLabel].filter(Boolean).join(" · ") || "全部";
+    return `${scope}收藏${status === "已卖出" ? "盈亏" : "净投入"}`;
   }
 
   globalScope.MiniProgramData = {

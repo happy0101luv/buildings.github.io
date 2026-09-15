@@ -281,6 +281,11 @@ function profitClass(value) {
   return value > 0 ? "profit" : value < 0 ? "loss" : "even";
 }
 
+function investmentMoney(value) {
+  const amount = Number(value || 0);
+  return `${amount < 0 ? "-" : ""}¥${formatMoney(Math.abs(amount))}`;
+}
+
 function paidAmount(record) {
   const paid = Number(record.paid);
   if (Number.isFinite(paid)) return paid;
@@ -614,22 +619,26 @@ function collectionView() {
     categories: state.collectionCategory === "全部分类" ? [] : [state.collectionCategory],
     search: state.collectionSearch,
   }).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
-  const { totalCount, totalPaid, totalDue, paymentPendingCount, arrivalPendingCount } = MiniProgramData.summarizeCollectionRecords(filtered);
-  const realizedProfit = filtered
-    .filter((record) => record.status === "已卖出")
-    .reduce((sum, record) => sum + saleProfit(record), 0);
-  const netInvestment = totalPaid - realizedProfit;
+  const summary = MiniProgramData.summarizeCollectionRecords(filtered);
+  const { totalCount, currentInvestment, soldCount, soldCost, soldRevenue, realizedProfit, netInvestment, paymentPendingCount, arrivalPendingCount } = summary;
+  const soldOnly = state.collectionStatus === "已卖出";
   const statusLabel = state.collectionStatus === "全部" ? "" : state.collectionStatus;
   const categoryLabel = state.collectionCategory === "全部分类" ? "" : state.collectionCategory;
   const scopeLabel = MiniProgramData.collectionScopeLabel(state.collectionStatus, state.collectionCategory);
   const hasActiveFilters = Boolean(state.collectionSearch || statusLabel || categoryLabel);
+  const headline = soldOnly
+    ? `<div class="big-money sale-headline ${profitClass(realizedProfit)}"><b>${realizedProfit > 0 ? "+" : realizedProfit < 0 ? "-" : ""}¥</b>${formatMoney(Math.abs(realizedProfit))}</div>`
+    : `<div class="big-money"><b>${netInvestment < 0 ? "-" : ""}¥</b>${formatMoney(Math.abs(netInvestment))}</div>`;
+  const investmentDetails = soldOnly
+    ? `<div class="investment-split collection-investment-split"><div>购入成本<strong>¥${formatMoney(soldCost)}</strong></div><div>售出金额<strong>¥${formatMoney(soldRevenue)}</strong></div><div>售出盈亏<strong class="${profitClass(realizedProfit)}">${signedMoney(realizedProfit)}</strong></div></div>`
+    : `<div class="investment-split collection-investment-split"><div>当前投入<strong>¥${formatMoney(currentInvestment)}</strong></div><div>售出盈亏<strong class="${profitClass(realizedProfit)}">${signedMoney(realizedProfit)}</strong></div><div>净投入<strong class="${netInvestment < 0 ? "profit" : ""}">${investmentMoney(netInvestment)}</strong></div></div>`;
   return `<section class="page">
     <div class="archive-intro"><p class="eyebrow">COLLECTION ARCHIVE</p><h2>我的收藏 <small>${totalCount} 件</small></h2></div>
     <div class="investment-card">
-      <p class="eyebrow">COLLECTION INVESTMENT</p><span class="investment-pill">${escapeHtml(scopeLabel)}</span>
-      <div class="big-money"><b>¥</b>${formatMoney(totalPaid)}</div>
-      <p>${totalCount} 件藏品&nbsp; · &nbsp;${paymentPendingCount} 待补款&nbsp; · &nbsp;${arrivalPendingCount} 待到货</p>
-      <div class="investment-split collection-investment-split"><div>已付金额<strong>¥${formatMoney(totalPaid)}</strong></div><div>售出盈亏<strong class="${profitClass(realizedProfit)}">${signedMoney(realizedProfit)}</strong></div><div>净投入<strong>¥${formatMoney(netInvestment)}</strong></div></div>
+      <p class="eyebrow">${soldOnly ? "SALE PERFORMANCE" : "COLLECTION NET INVESTMENT"}</p><span class="investment-pill">${escapeHtml(scopeLabel)}</span>
+      ${headline}
+      <p>${soldOnly ? `${soldCount} 件已卖出藏品` : `${totalCount} 件藏品&nbsp; · &nbsp;${paymentPendingCount} 待补款&nbsp; · &nbsp;${arrivalPendingCount} 待到货`}</p>
+      ${investmentDetails}
     </div>
     <form class="search-box collection-search" id="collectionSearchForm"><i data-lucide="search"></i><input id="collectionSearch" value="${escapeHtml(state.collectionSearchDraft)}" placeholder="搜索藏品 / 厂牌 / 分类 / 备注" enterkeyhint="search" autocapitalize="none" spellcheck="false" /><button id="collectionSearchButton" type="submit" aria-label="执行搜索"><i data-lucide="search"></i></button></form>
     <div class="segment" id="statusSegment">
