@@ -340,12 +340,13 @@ img { display: block; max-width: 100%; }
 .segment button.active { background: #151210; color: #fff; }
 .life-segment { grid-template-columns: repeat(7, 1fr); }
 .life-segment button { padding: 0 2px; font-size: 12px; }
-.filter-row { display: flex; align-items: center; gap: 7px; margin: 9px 0 12px; overflow-x: auto; scrollbar-width: none; }
-.filter-row::-webkit-scrollbar { display: none; }
+.filter-row { display: flex; align-items: center; gap: 7px; margin: 9px 0 12px; }
+.category-filter-scroll { min-width: 0; flex: 1 1 auto; display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; }
+.category-filter-scroll::-webkit-scrollbar { display: none; }
 .filter-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 800; }
 .chip { flex: 0 0 auto; height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 16px; background: #fff; color: var(--muted); font-size: 11px; }
 .chip.active { border-color: #eeaaa8; background: #fff3f2; color: var(--red); font-weight: 800; }
-.manage-chip { border-radius: 6px; font-weight: 800; }
+.manage-chip { flex: 0 0 auto; border-radius: 6px; font-weight: 800; }
 .category-manager-backdrop {
   position: absolute;
   z-index: 60;

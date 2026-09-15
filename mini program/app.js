@@ -107,10 +107,12 @@ function visibleCollectionCategories() {
 }
 
 function ensureCollectionCategory(name) {
-  const value = String(name || "").trim();
-  if (!value || value === "全部分类" || state.collectionCategories.some((category) => category.name === value)) return;
-  state.collectionCategories.push({ name: value, hidden: false });
-  try { localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(state.collectionCategories)); } catch {}
+  const result = MiniProgramData.ensureCategoryConfig(state.collectionCategories, name);
+  state.collectionCategories = result.categories;
+  if (result.added) {
+    try { localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(state.collectionCategories)); } catch {}
+  }
+  return result;
 }
 
 function saveLifeRecords() {
@@ -633,7 +635,7 @@ function collectionView() {
     <div class="segment" id="statusSegment">
       ${["全部", "已入库", "已卖出", "待补款", "待到货"].map((item) => `<button type="button" data-status="${item}" class="${state.collectionStatus === item ? "active" : ""}">${item}</button>`).join("")}
     </div>
-    <div class="filter-row"><span class="filter-label">分类</span><button class="chip ${state.collectionCategory === "全部分类" ? "active" : ""}" type="button" data-category="全部分类">全部分类</button>${visibleCollectionCategories().map((category) => `<button class="chip ${state.collectionCategory === category.name ? "active" : ""}" type="button" data-category="${escapeHtml(category.name)}">${escapeHtml(category.name)}</button>`).join("")}<button class="chip manage-chip" id="manageCategories" type="button">管理</button></div>
+    <div class="filter-row"><span class="filter-label">分类</span><div class="category-filter-scroll"><button class="chip ${state.collectionCategory === "全部分类" ? "active" : ""}" type="button" data-category="全部分类">全部分类</button>${visibleCollectionCategories().map((category) => `<button class="chip ${state.collectionCategory === category.name ? "active" : ""}" type="button" data-category="${escapeHtml(category.name)}">${escapeHtml(category.name)}</button>`).join("")}</div><button class="chip manage-chip" id="manageCategories" type="button" aria-haspopup="dialog">管理</button></div>
     <div class="list-meta"><span>当前显示 ${totalCount} 件</span><div class="view-switch"><button type="button" data-list-view="list" class="${state.collectionView === "list" ? "active" : ""}">清单</button><button type="button" data-list-view="grid" class="${state.collectionView === "grid" ? "active" : ""}">展柜</button></div></div>
     <div class="collection-image-progress" id="collectionImageProgress" hidden><div><span id="collectionImageProgressText">正在加载图片 0/0</span><b id="collectionImageProgressPercent">0%</b></div><i><em id="collectionImageProgressBar"></em></i></div>
     ${filtered.length ? `<div class="record-list ${state.collectionView}">${filtered.map(state.collectionView === "grid" ? showcaseItem : recordCard).join("")}</div>` : `<div class="empty-state collection-empty"><p>没有匹配的藏品${hasActiveFilters ? '<button class="clear-collection-filters" id="clearCollectionFilters" type="button">清空筛选</button>' : ""}</p></div>`}
@@ -651,7 +653,7 @@ function categoryManagerView() {
           <div class="category-manager-actions">
             <button type="button" data-category-move="-1" data-category-index="${index}" aria-label="上移 ${escapeHtml(category.name)}" ${index === 0 ? "disabled" : ""}><i data-lucide="arrow-up"></i></button>
             <button type="button" data-category-move="1" data-category-index="${index}" aria-label="下移 ${escapeHtml(category.name)}" ${index === state.collectionCategories.length - 1 ? "disabled" : ""}><i data-lucide="arrow-down"></i></button>
-            <button class="category-visibility" type="button" data-category-visibility="${index}">${category.hidden ? "显示" : "隐藏"}</button>
+            <button class="category-visibility" type="button" data-category-visibility="${index}" aria-pressed="${category.hidden}" aria-label="${category.hidden ? "显示" : "隐藏"}分类 ${escapeHtml(category.name)}">${category.hidden ? "显示" : "隐藏"}</button>
           </div>
         </div>`).join("")}
       </div>
@@ -856,21 +858,19 @@ function bindCollectionEvents() {
   content.querySelector("#closeCategoryManager")?.focus();
   content.querySelectorAll("[data-category-move]").forEach((button) => button.addEventListener("click", () => {
     const from = Number(button.dataset.categoryIndex);
-    const to = from + Number(button.dataset.categoryMove);
-    if (from < 0 || to < 0 || from >= state.collectionCategories.length || to >= state.collectionCategories.length) return;
-    const next = [...state.collectionCategories];
-    [next[from], next[to]] = [next[to], next[from]];
+    const next = MiniProgramData.moveCategoryConfig(state.collectionCategories, from, Number(button.dataset.categoryMove));
+    if (next.every((category, index) => category.name === state.collectionCategories[index]?.name)) return;
     state.collectionCategories = next;
     saveCollectionCategories("调整分类顺序");
     render();
   }));
   content.querySelectorAll("[data-category-visibility]").forEach((button) => button.addEventListener("click", () => {
     const index = Number(button.dataset.categoryVisibility);
-    const category = state.collectionCategories[index];
-    if (!category) return;
-    state.collectionCategories = state.collectionCategories.map((item, itemIndex) => itemIndex === index ? { ...item, hidden: !item.hidden } : item);
-    if (state.collectionCategories[index].hidden && state.collectionCategory === category.name) state.collectionCategory = "全部分类";
-    saveCollectionCategories(state.collectionCategories[index].hidden ? "隐藏分类" : "显示分类");
+    const result = MiniProgramData.toggleCategoryVisibility(state.collectionCategories, index);
+    if (!result.category) return;
+    state.collectionCategories = result.categories;
+    if (result.hidden && state.collectionCategory === result.category.name) state.collectionCategory = "全部分类";
+    saveCollectionCategories(result.hidden ? "隐藏分类" : "显示分类");
     render();
   }));
   content.querySelector("#resetCategories")?.addEventListener("click", () => {
@@ -1246,13 +1246,16 @@ function bindAddEvents() {
       catalogId: existing?.catalogId || "",
       updatedAt: new Date().toISOString(),
     };
-    ensureCollectionCategory(next.category);
+    const categoryResult = ensureCollectionCategory(next.category);
+    next.category = categoryResult.name || "高达模型";
     if (existing) state.records = state.records.map((record) => String(record.id) === String(existing.id) ? next : record);
     else state.records.unshift(next);
     if (!saveRecords(existing ? "修改收藏" : "新增收藏")) return;
     state.editingId = "";
     state.uploadImage = "";
-    showToast(existing ? "收藏已更新" : "收藏已保存");
+    showToast(categoryResult.added
+      ? `${existing ? "收藏已更新" : "收藏已保存"}，已创建分类「${categoryResult.name}」`
+      : existing ? "收藏已更新" : "收藏已保存");
     navigate(state.addReturnRoute === "life" ? "life" : "collection");
   });
   content.querySelector("#deleteRecord")?.addEventListener("click", () => {

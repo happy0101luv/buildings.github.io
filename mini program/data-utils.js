@@ -84,11 +84,12 @@
     const result = [];
     const indexByName = new Map();
     const add = (entry, fallbackHidden = false) => {
-      const name = String(typeof entry === "string" ? entry : entry?.name || "").trim();
-      if (!name || name === "全部分类") return;
+      const name = String(typeof entry === "string" ? entry : entry?.name || "").trim().replace(/\s+/g, " ");
+      const key = normalizedText(name.normalize("NFKC"));
+      if (!name || key === normalizedText("全部分类")) return;
       const hidden = typeof entry === "object" && entry !== null ? Boolean(entry.hidden) : fallbackHidden;
-      if (indexByName.has(name)) return;
-      indexByName.set(name, result.length);
+      if (indexByName.has(key)) return;
+      indexByName.set(key, result.length);
       result.push({ name, hidden });
     };
 
@@ -96,6 +97,43 @@
     (Array.isArray(defaults) ? defaults : []).forEach((entry) => add(entry));
     (Array.isArray(records) ? records : []).forEach((record) => add(record?.category));
     return result;
+  }
+
+  function ensureCategoryConfig(source, requestedName) {
+    const categories = normalizeCategoryConfig(source, [], []);
+    const name = String(requestedName || "").trim().replace(/\s+/g, " ");
+    const key = normalizedText(name.normalize("NFKC"));
+    if (!name || key === normalizedText("全部分类")) {
+      return { categories, added: false, name: "" };
+    }
+
+    const existing = categories.find((category) => normalizedText(category.name.normalize("NFKC")) === key);
+    if (existing) return { categories, added: false, name: existing.name };
+
+    categories.push({ name, hidden: false });
+    return { categories, added: true, name };
+  }
+
+  function moveCategoryConfig(source, requestedIndex, requestedOffset) {
+    const categories = normalizeCategoryConfig(source, [], []);
+    const from = Number(requestedIndex);
+    const offset = Number(requestedOffset);
+    const to = from + offset;
+    if (!Number.isInteger(from) || !Number.isInteger(offset) || Math.abs(offset) !== 1 || to < 0 || to >= categories.length) {
+      return categories;
+    }
+    [categories[from], categories[to]] = [categories[to], categories[from]];
+    return categories;
+  }
+
+  function toggleCategoryVisibility(source, requestedIndex) {
+    const categories = normalizeCategoryConfig(source, [], []);
+    const index = Number(requestedIndex);
+    if (!Number.isInteger(index) || index < 0 || index >= categories.length) {
+      return { categories, category: null, hidden: false };
+    }
+    categories[index] = { ...categories[index], hidden: !categories[index].hidden };
+    return { categories, category: categories[index], hidden: categories[index].hidden };
   }
 
   function mergeCategoryConfigs(currentConfig, importedConfig, records, defaults) {
@@ -177,11 +215,14 @@
     collectionScopeLabel,
     filterCollectionRecords,
     collectionPreorderStage,
+    ensureCategoryConfig,
     mergeCategoryConfigs,
     mergeRecords,
     matchesCollectionStatus,
+    moveCategoryConfig,
     normalizeCategoryConfig,
     recordFingerprint,
     summarizeCollectionRecords,
+    toggleCategoryVisibility,
   };
 })(typeof window === "undefined" ? globalThis : window);
