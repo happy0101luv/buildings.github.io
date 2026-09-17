@@ -643,7 +643,7 @@ img { display: block; max-width: 100%; }
 .savings-balance-head h2, .savings-plan-head h2, .savings-log-head h2 { margin: 0; font-size: 18px; line-height: 23px; font-weight: 900; }
 .savings-balance-head button { height: 29px; padding: 0 10px; border: 1px solid #514d48; border-radius: 15px; display: inline-flex; align-items: center; gap: 5px; background: #26231f; color: #f5f2ed; font-size: 11px; }
 .savings-balance-head button svg { width: 13px; height: 13px; }
-.savings-balance-amount { position: relative; margin: 16px 0 17px; overflow: hidden; font-family: Georgia, serif; font-size: 40px; line-height: 44px; font-weight: 800; letter-spacing: -.7px; text-overflow: ellipsis; white-space: nowrap; }
+.savings-balance-amount { position: relative; margin: 16px 0 17px; overflow: hidden; font-family: inherit; font-size: 40px; line-height: 44px; font-weight: 800; letter-spacing: -.7px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .savings-balance-meta { position: relative; display: flex; align-items: center; justify-content: space-between; color: #bbb6af; font-size: 10px; }
 .savings-balance-meta span { display: inline-flex; align-items: center; }
 .savings-balance-meta span > i { width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #52a77c; }
@@ -717,7 +717,7 @@ img { display: block; max-width: 100%; }
 .profile-savings-privacy { position: absolute; z-index: 4; right: 9px; top: 10px; width: 29px; height: 29px; padding: 5px; border: 0; background: transparent; color: var(--muted); }
 .profile-savings-privacy svg { width: 18px; height: 18px; }
 .profile-savings-amount { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-right: 2px; }
-.profile-savings-amount strong { min-width: 0; overflow: hidden; font-family: Georgia, serif; font-size: 28px; line-height: 34px; letter-spacing: -.5px; text-overflow: ellipsis; white-space: nowrap; }
+.profile-savings-amount strong { min-width: 0; overflow: hidden; font-family: inherit; font-size: 28px; line-height: 34px; letter-spacing: -.5px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .profile-savings-amount > span { flex: none; width: 89px; height: 29px; margin-right: 32px; border: 1px solid #efb3b4; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: var(--red); font-size: 11px; font-weight: 850; }
 .profile-savings-amount > span b { margin-left: 4px; font-size: 16px; }
 .profile-savings-meta { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #e8e4df; }
