@@ -238,18 +238,75 @@
     return `${scope}收藏${status === "已卖出" ? "盈亏" : "净投入"}`;
   }
 
+  function currentMonthKey(date = new Date()) {
+    const value = date instanceof Date ? date : new Date(date);
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function normalizeSavingsData(source) {
+    const raw = source && typeof source === "object" ? source : {};
+    const currentBalance = Number(raw.currentBalance);
+    const months = {};
+    for (const [month, entry] of Object.entries(raw.months || {})) {
+      if (!/^\d{4}-\d{2}$/.test(month) || !entry || typeof entry !== "object") continue;
+      const salary = entry.salary === "" || entry.salary == null ? null : Number(entry.salary);
+      const actual = entry.actual === "" || entry.actual == null ? null : Number(entry.actual);
+      months[month] = {
+        salary: Number.isFinite(salary) ? salary : null,
+        actual: Number.isFinite(actual) ? actual : null,
+        note: String(entry.note || "").trim().slice(0, 60),
+        confirmed: typeof entry.confirmed === "boolean" ? entry.confirmed : Number.isFinite(actual),
+        confirmedAt: entry.confirmedAt || "",
+      };
+    }
+    const logs = (Array.isArray(raw.logs) ? raw.logs : []).filter((log) => log && typeof log === "object").map((log) => ({
+      id: String(log.id || `savings-${Date.now()}-${Math.random().toString(16).slice(2)}`),
+      type: ["month", "edit", "manual"].includes(log.type) ? log.type : "month",
+      month: /^\d{4}-\d{2}$/.test(String(log.month || "")) ? String(log.month) : "",
+      title: String(log.title || "储蓄记录"),
+      estimated: log.estimated == null ? null : Number(log.estimated),
+      actual: log.actual == null ? null : Number(log.actual),
+      balance: Number.isFinite(Number(log.balance)) ? Number(log.balance) : 0,
+      note: String(log.note || "").trim().slice(0, 60),
+      createdAt: log.createdAt || new Date().toISOString(),
+    }));
+    return {
+      currentBalance: Number.isFinite(currentBalance) ? currentBalance : 0,
+      months,
+      logs,
+    };
+  }
+
+  function savingsActualDelta(previousActual, nextActual) {
+    const previous = previousActual == null || previousActual === "" ? 0 : Number(previousActual);
+    const next = nextActual == null || nextActual === "" ? 0 : Number(nextActual);
+    return (Number.isFinite(next) ? next : 0) - (Number.isFinite(previous) ? previous : 0);
+  }
+
+  function monthlyExpenseTotal(expenses, month) {
+    return (Array.isArray(expenses) ? expenses : []).reduce((sum, expense) => {
+      if (String(expense?.date || "").slice(0, 7) !== month) return sum;
+      const amount = Number(expense?.amount || 0);
+      return sum + (Number.isFinite(amount) ? amount : 0);
+    }, 0);
+  }
+
   globalScope.MiniProgramData = {
     collectionScopeLabel,
+    currentMonthKey,
     filterCollectionRecords,
     collectionPreorderStage,
     ensureCategoryConfig,
     mergeCategoryConfigs,
     mergeRecords,
+    monthlyExpenseTotal,
     matchesCollectionStatus,
     moveCategoryConfig,
     normalizeCategoryConfig,
+    normalizeSavingsData,
     recordFingerprint,
     summarizeCollectionRecords,
+    savingsActualDelta,
     toggleCategoryVisibility,
   };
 })(typeof window === "undefined" ? globalThis : window);

@@ -5,14 +5,17 @@ const PENDING_SYNC_KEY = "hangar07-pending-sync-v1:本地镜像";
 const LIFE_STORAGE_KEY = "wanwu-life-expenses-v1";
 const FULL_BACKUP_KEY = "wanwu-full-data-backups-v1";
 const COLLECTION_CATEGORIES_KEY = "wanwu-collection-categories-v1";
+const SAVINGS_STORAGE_KEY = "wanwu-savings-v1";
+const SAVINGS_PRIVACY_KEY = "wanwu-savings-balance-hidden-v1";
 const STORAGE_COMPACTED_KEY = "wanwu-storage-compacted-v2";
 const COMPRESSED_IMAGE_MAX_BYTES = 180 * 1024;
 const COMPRESSED_IMAGE_MAX_SIDE = 1280;
-const ROUTES = ["life", "dashboard", "collection", "profile", "collection-wall", "add", "life-add"];
+const ROUTES = ["life", "dashboard", "collection", "savings", "profile", "collection-wall", "add", "life-add"];
 const TITLES = {
   life: "生活记账",
   dashboard: "总览",
   collection: "收藏库",
+  savings: "储蓄",
   profile: "我的",
   "collection-wall": "我的收藏墙",
   add: "新增收藏",
@@ -65,6 +68,10 @@ const state = {
   failedImageIds: new Set(),
   retryFailedImages: false,
   profile: { username: "本地镜像", authenticated: true },
+  savings: { currentBalance: 0, months: {}, logs: [] },
+  savingsMonth: MiniProgramData.currentMonthKey(),
+  savingsEditing: false,
+  savingsBalanceHidden: localStorage.getItem(SAVINGS_PRIVACY_KEY) === "true",
 };
 
 function safeParse(value, fallback) {
@@ -89,6 +96,21 @@ function loadLifeRecords() {
 function loadCollectionCategories(records) {
   const saved = safeParse(localStorage.getItem(COLLECTION_CATEGORIES_KEY), []);
   return MiniProgramData.normalizeCategoryConfig(saved, records, DEFAULT_COLLECTION_CATEGORIES);
+}
+
+function loadSavingsData() {
+  return MiniProgramData.normalizeSavingsData(safeParse(localStorage.getItem(SAVINGS_STORAGE_KEY), null));
+}
+
+function saveSavingsData(reason = "储蓄数据更新") {
+  try {
+    localStorage.setItem(SAVINGS_STORAGE_KEY, JSON.stringify(state.savings));
+    backupAllData(reason);
+    return true;
+  } catch {
+    showToast("本机存储空间不足，储蓄记录保存失败");
+    return false;
+  }
 }
 
 function saveCollectionCategories(reason = "分类标签更新") {
@@ -156,6 +178,7 @@ function buildLightSnapshot() {
     records: imageLightRecords(state.records),
     lifeRecords: imageLightRecords(state.lifeRecords),
     collectionCategories: structuredClone(state.collectionCategories),
+    savings: structuredClone(state.savings),
   };
 }
 
@@ -182,12 +205,13 @@ function buildDataArchive() {
   return {
     exportedAt: new Date().toISOString(),
     app: "玩物不丧志",
-    version: 2,
+    version: 3,
     records: structuredClone(state.records),
     backups: structuredClone(getCollectionBackups()),
     lifeRecords: structuredClone(state.lifeRecords),
     lifeCategories: [...LIFE_EXPENSE_CATEGORIES],
     collectionCategories: structuredClone(state.collectionCategories),
+    savings: structuredClone(state.savings),
   };
 }
 
@@ -352,6 +376,7 @@ function currentRoute() {
 
 function navigate(route, options = {}) {
   if (!ROUTES.includes(route)) return;
+  if (route !== "savings") state.savingsEditing = false;
   if (route === "collection-wall") {
     state.addReturnRoute = "profile";
     state.wallLoading = false;
@@ -671,6 +696,109 @@ function categoryManagerView() {
   </div>`;
 }
 
+function savingsMonthData(month = state.savingsMonth) {
+  return state.savings.months[month] || { salary: null, actual: null, note: "", confirmed: false, confirmedAt: "" };
+}
+
+function savingsExpenseTotal(month = state.savingsMonth) {
+  return MiniProgramData.monthlyExpenseTotal(allLifeExpenses(), month);
+}
+
+function savingsEstimate(month = state.savingsMonth) {
+  const data = savingsMonthData(month);
+  return data.salary == null ? null : Number(data.salary) - savingsExpenseTotal(month);
+}
+
+function savingsMoney(value) {
+  if (value == null || value === "") return "—";
+  const amount = Number(value || 0);
+  return `${amount < 0 ? "-" : ""}¥${Math.abs(amount).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function savingsMonthLabel(month = state.savingsMonth) {
+  const [year, number] = month.split("-");
+  return `${year} 年 ${number} 月`;
+}
+
+function savingsShortMonth(month = state.savingsMonth) {
+  return `${Number(month.slice(5))} 月`;
+}
+
+function savingsLogView(log) {
+  const icon = log.type === "manual" ? "pen-line" : log.type === "edit" ? "file-pen-line" : "check";
+  const time = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(log.createdAt));
+  return `<article class="savings-log-item">
+    <i data-lucide="${icon}"></i>
+    <div class="savings-log-body">
+      <div class="savings-log-title"><strong>${escapeHtml(log.title)}</strong><time>${escapeHtml(time)}</time></div>
+      <dl>
+        <div><dt>预计储蓄</dt><dd>${savingsMoney(log.estimated)}</dd></div>
+        <div><dt>实际储蓄</dt><dd>${log.actual == null ? "未填写" : savingsMoney(log.actual)}</dd></div>
+        <div><dt>当前存款</dt><dd>${savingsMoney(log.balance)}</dd></div>
+        ${log.note ? `<div class="savings-log-note"><dt>备注</dt><dd>${escapeHtml(log.note)}</dd></div>` : ""}
+      </dl>
+    </div>
+  </article>`;
+}
+
+function savingsView() {
+  const data = savingsMonthData();
+  const expense = savingsExpenseTotal();
+  const estimate = savingsEstimate();
+  const locked = Boolean(data.confirmed) && !state.savingsEditing;
+  const status = data.confirmed ? (data.actual == null ? "已记录" : "已入账") : "待确认";
+  const logs = state.savings.logs;
+  return `<section class="page savings-page">
+    <div class="savings-balance-card">
+      <div class="savings-balance-head"><div><p class="eyebrow">CURRENT DEPOSIT</p><h2>当前存款</h2></div><button id="adjustSavingsBalance" type="button"><i data-lucide="pen-line"></i>调整</button></div>
+      <p class="savings-balance-amount">${savingsMoney(state.savings.currentBalance)}</p>
+      <div class="savings-balance-meta"><span><i></i>已同步至本机</span><span>${savingsShortMonth()} ${signedMoney(data.actual || 0)}</span></div>
+    </div>
+
+    <div class="savings-month-toolbar">
+      <button id="savingsPrevMonth" type="button" aria-label="上个月">‹</button>
+      <label><span>${savingsMonthLabel()}</span><i data-lucide="chevron-down"></i><input id="savingsMonthInput" type="month" value="${state.savingsMonth}" aria-label="选择月份" /></label>
+      <button id="savingsNextMonth" type="button" aria-label="下个月">›</button>
+    </div>
+
+    <div class="savings-plan-card ${locked ? "is-locked" : ""}">
+      <div class="savings-plan-head"><div><p class="eyebrow">MONTHLY PLAN</p><h2>本月储蓄测算</h2></div><span class="savings-status ${data.confirmed ? "confirmed" : ""}">${status}</span></div>
+      <label class="savings-field"><span>本月工资收入</span><div><b>¥</b><input id="savingsSalary" type="number" min="0" step="0.01" inputmode="decimal" value="${data.salary ?? ""}" placeholder="填入实际到账工资" ${locked ? "readonly" : ""} /></div></label>
+      <div class="savings-expense-row"><div><span>本月生活支出</span><small><i></i>来自「生活」记账</small></div><strong>${savingsMoney(expense)}</strong></div>
+      <div class="savings-formula"><span>收入</span><i>−</i><span>支出</span><i>=</i><span>预计储蓄</span></div>
+      <div class="savings-estimate"><div><span>预计可储蓄</span><small>随收入和支出自动计算</small></div><strong id="savingsEstimate">${savingsMoney(estimate)}</strong></div>
+      <label class="savings-field"><span>实际储蓄 <small>月底确认后填写</small></span><div><b>¥</b><input id="savingsActual" type="number" step="0.01" inputmode="decimal" value="${data.actual ?? ""}" placeholder="暂未确认" ${locked ? "readonly" : ""} /></div></label>
+      <label class="savings-field savings-note"><span>备注 <small>选填</small></span><div><input id="savingsNote" type="text" maxlength="60" value="${escapeHtml(data.note || "")}" placeholder="例如：本月奖金单独存入" ${locked ? "readonly" : ""} /></div></label>
+      <p class="savings-change-hint" id="savingsChangeHint">${locked ? "本月记录已锁定，如需修改请先进入编辑模式。" : "未填写实际储蓄时，只保存测算，不改变当前存款。"}</p>
+      <div class="savings-form-actions">${state.savingsEditing ? '<button class="secondary" id="cancelSavingsEdit" type="button">取消编辑</button>' : ""}<button class="primary" id="saveSavingsMonth" type="button">${locked ? "编辑本月记录" : state.savingsEditing ? "保存修改" : "确认本月记录"}</button></div>
+    </div>
+
+    <div class="savings-log-head"><div><p class="eyebrow">CHANGE LOG</p><h2>储蓄日志</h2></div></div>
+    <div class="savings-log-list">${logs.length ? logs.map(savingsLogView).join("") : '<div class="empty-state"><p>还没有储蓄记录</p></div>'}</div>
+
+    <dialog class="savings-dialog" id="savingsEditDialog">
+      <form method="dialog"><p class="eyebrow">EDIT CONFIRMATION</p><h2>编辑已确认记录？</h2><p>确认后才会解锁本月数据。再次保存时将重新计算当前存款，并生成一条修改日志。</p><div><button value="cancel" type="submit">暂不编辑</button><button id="confirmSavingsEdit" value="default" type="submit">确认编辑</button></div></form>
+    </dialog>
+    <dialog class="savings-dialog" id="savingsBalanceDialog">
+      <form method="dialog" id="savingsBalanceForm"><p class="eyebrow">BALANCE ADJUSTMENT</p><h2>调整当前存款</h2><p>用于补录原有存款、利息或其他修正，保存后会写入日志。</p><label class="savings-field"><span>调整后的存款</span><div><b>¥</b><input name="balance" type="number" min="0" step="0.01" inputmode="decimal" value="${state.savings.currentBalance}" required /></div></label><label class="savings-field savings-note"><span>变更说明 <small>选填</small></span><div><input name="note" type="text" maxlength="60" placeholder="例如：补录原有存款" /></div></label><div><button value="cancel" type="submit">取消</button><button value="default" type="submit">确认调整</button></div></form>
+    </dialog>
+  </section>`;
+}
+
+function profileSavingsCard() {
+  const data = savingsMonthData(MiniProgramData.currentMonthKey());
+  const estimate = data.salary == null ? null : Number(data.salary) - savingsExpenseTotal(MiniProgramData.currentMonthKey());
+  const hidden = state.savingsBalanceHidden;
+  return `<div class="profile-savings-card">
+    <button class="profile-savings-privacy" id="toggleSavingsPrivacy" type="button" aria-label="${hidden ? "显示金额" : "隐藏金额"}" aria-pressed="${hidden}"><i data-lucide="${hidden ? "eye-off" : "eye"}"></i></button>
+    <button class="profile-savings-main" type="button" data-go="savings">
+      <div class="profile-savings-head"><div><p class="eyebrow">CURRENT DEPOSIT</p><h3>当前存款</h3></div></div>
+      <div class="profile-savings-amount"><strong>${hidden ? "¥••••••" : savingsMoney(state.savings.currentBalance)}</strong><span>进入储蓄 <b>›</b></span></div>
+      <div class="profile-savings-meta"><div>本月预计 <b>${hidden ? "¥••••" : savingsMoney(estimate)}</b></div><div>实际储蓄 <b>${hidden ? "¥••••" : data.actual == null ? "待确认" : savingsMoney(data.actual)}</b></div></div>
+    </button>
+  </div>`;
+}
+
 function profileView() {
   const count = state.records.reduce((sum, record) => sum + quantity(record), 0);
   const yearCount = state.records.filter((record) => yearOf(record) === new Date().getFullYear()).reduce((sum, record) => sum + quantity(record), 0);
@@ -679,7 +807,8 @@ function profileView() {
   const favorite = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "等待第一件收藏";
   const username = state.profile.username || "本地镜像";
   return `<section class="page">
-    <div class="profile-head"><div class="avatar">${escapeHtml(username.slice(0, 1))}</div><div class="profile-name"><h2>${escapeHtml(username)} <span class="login-badge">已登录</span></h2><p>收藏数据已保存在当前设备</p></div><button class="avatar-action" type="button">更换头像 ›</button></div>
+    <div class="profile-head"><div class="avatar">${escapeHtml(username.slice(0, 1))}</div><div class="profile-name"><h2>${escapeHtml(username)} <span class="login-badge">已登录</span></h2><p>收藏与储蓄数据已保存在当前设备</p></div><button class="avatar-action" type="button">更换头像 ›</button></div>
+    ${profileSavingsCard()}
     <p class="profile-section-title">收藏画像</p>
     <div class="collection-portrait"><p class="eyebrow">MY COLLECTION</p><h3>${escapeHtml(count ? `${favorite}收藏者` : "等待第一件收藏")}</h3><p>${count ? `最常收藏 ${favorite}` : "从第一件藏品开始生成收藏画像"}</p><div class="portrait-stats"><div><strong>${count}</strong><span>件收藏</span></div><div><strong>${yearCount}</strong><span>今年新增</span></div><div><strong>${preorders}</strong><span>仍在预定</span></div></div><div class="portrait-actions"><div class="portrait-link" data-go="collection" role="button" tabindex="0">打开收藏库 <b>›</b></div><button type="button" data-go="collection-wall">生成收藏墙</button></div></div>
     <p class="profile-section-title">购买计划</p>
@@ -688,7 +817,7 @@ function profileView() {
     <div class="project-card"><p class="eyebrow">PROJECT COMPLETION</p><h3>补完计划</h3><p>提建议、看共识、跟进采纳进度</p><b>进入 ›</b></div>
     <p class="profile-section-title">数据与备份</p>
     <div class="data-vault">
-      <div class="data-vault-head"><div><h3>资料保险箱</h3><p>收藏与生活记账完整 JSON 备份</p></div><i data-lucide="shield-check"></i></div>
+      <div class="data-vault-head"><div><h3>资料保险箱</h3><p>收藏、生活记账与储蓄完整 JSON 备份</p></div><i data-lucide="shield-check"></i></div>
       <div class="data-actions">
         <button id="exportBackup" type="button"><i data-lucide="download"></i><span>导出数据<small>按标准模板保存</small></span></button>
         <button id="copyBackup" type="button"><i data-lucide="copy"></i><span>复制备份<small>复制完整 JSON</small></span></button>
@@ -696,7 +825,7 @@ function profileView() {
         <button id="restorePrevious" type="button"><i data-lucide="history"></i><span>恢复上版<small>恢复最近历史版本</small></span></button>
         <button id="reloadCollectionImages" type="button"><i data-lucide="refresh-cw"></i><span>重新加载图片<small>重试收藏封面</small></span></button>
       </div>
-      <p class="data-backup-status">已自动保存 ${fullBackupCount()} 个版本 · 当前 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出</p>
+      <p class="data-backup-status">已自动保存 ${fullBackupCount()} 个版本 · ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出、${Object.keys(state.savings.months).length} 个月储蓄</p>
       <input id="backupImportFile" type="file" accept="application/json,.json" hidden />
     </div>
     <p class="profile-section-title">测试工具</p>
@@ -781,6 +910,7 @@ function lifeAddView() {
 
 function render() {
   state.route = currentRoute();
+  if (state.route !== "savings") state.savingsEditing = false;
   if (state.route !== "collection") startCollectionImageQueue.runToken += 1;
   pageTitle.textContent = state.route === "add" && state.editingId ? "修改收藏" : TITLES[state.route];
   const formMode = state.route === "add" || state.route === "life-add";
@@ -796,7 +926,7 @@ function render() {
   }
   floatingAdd.hidden = !["life", "dashboard", "collection"].includes(state.route);
   tabbar.querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.route === state.route));
-  const views = { life: lifeView, dashboard: dashboardView, collection: collectionView, profile: profileView, "collection-wall": collectionWallView, add: addView, "life-add": lifeAddView };
+  const views = { life: lifeView, dashboard: dashboardView, collection: collectionView, savings: savingsView, profile: profileView, "collection-wall": collectionWallView, add: addView, "life-add": lifeAddView };
   window.WanwuAntDatePicker?.unmountAll(content);
   content.innerHTML = views[state.route]();
   window.WanwuAntDatePicker?.mountAll(content);
@@ -1010,6 +1140,153 @@ function bindLifeEvents() {
     };
     card.addEventListener("click", open);
     card.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") open(); });
+  });
+}
+
+function bindSavingsEvents() {
+  const salaryInput = content.querySelector("#savingsSalary");
+  const actualInput = content.querySelector("#savingsActual");
+  const noteInput = content.querySelector("#savingsNote");
+  const estimateElement = content.querySelector("#savingsEstimate");
+  const hintElement = content.querySelector("#savingsChangeHint");
+  const currentData = savingsMonthData();
+
+  const inputNumber = (input) => {
+    if (!input || input.value.trim() === "") return null;
+    const value = Number(input.value);
+    return Number.isFinite(value) ? value : null;
+  };
+
+  const updateDraft = () => {
+    const salary = inputNumber(salaryInput);
+    const estimate = salary == null ? null : salary - savingsExpenseTotal();
+    if (estimateElement) estimateElement.textContent = savingsMoney(estimate);
+    if (!hintElement || (currentData.confirmed && !state.savingsEditing)) return;
+    const actual = inputNumber(actualInput);
+    const delta = MiniProgramData.savingsActualDelta(currentData.actual, actual);
+    if (actual == null) {
+      hintElement.textContent = currentData.actual == null ? "未填写实际储蓄时，只保存测算，不改变当前存款。" : "清空后保存，将从当前存款中撤回原入账金额。";
+      hintElement.className = "savings-change-hint";
+    } else if (delta === 0 && currentData.actual != null) {
+      hintElement.textContent = "与已入账金额相同，当前存款不会变化。";
+      hintElement.className = "savings-change-hint";
+    } else {
+      hintElement.textContent = `确认后，当前存款将${delta >= 0 ? "增加" : "减少"} ${savingsMoney(Math.abs(delta))}。`;
+      hintElement.className = `savings-change-hint ${delta >= 0 ? "positive" : "negative"}`;
+    }
+  };
+
+  salaryInput?.addEventListener("input", updateDraft);
+  actualInput?.addEventListener("input", updateDraft);
+
+  const moveMonth = (offset) => {
+    const [year, month] = state.savingsMonth.split("-").map(Number);
+    const date = new Date(year, month - 1 + offset, 1);
+    state.savingsMonth = MiniProgramData.currentMonthKey(date);
+    state.savingsEditing = false;
+    render();
+  };
+  content.querySelector("#savingsPrevMonth")?.addEventListener("click", () => moveMonth(-1));
+  content.querySelector("#savingsNextMonth")?.addEventListener("click", () => moveMonth(1));
+  content.querySelector("#savingsMonthInput")?.addEventListener("change", (event) => {
+    if (!event.target.value) return;
+    state.savingsMonth = event.target.value;
+    state.savingsEditing = false;
+    render();
+  });
+
+  const editDialog = content.querySelector("#savingsEditDialog");
+  content.querySelector("#saveSavingsMonth")?.addEventListener("click", () => {
+    if (currentData.confirmed && !state.savingsEditing) {
+      editDialog?.showModal();
+      return;
+    }
+
+    const salary = inputNumber(salaryInput);
+    const actual = inputNumber(actualInput);
+    if (salary == null || salary < 0) {
+      salaryInput?.focus();
+      showToast("请先填写本月工资收入");
+      return;
+    }
+
+    const previousSavings = structuredClone(state.savings);
+    const delta = MiniProgramData.savingsActualDelta(currentData.actual, actual);
+    const wasConfirmed = Boolean(currentData.confirmed);
+    const nextData = {
+      salary,
+      actual,
+      note: String(noteInput?.value || "").trim().slice(0, 60),
+      confirmed: true,
+      confirmedAt: new Date().toISOString(),
+    };
+    state.savings.currentBalance += delta;
+    state.savings.months[state.savingsMonth] = nextData;
+    state.savings.logs.unshift({
+      id: `savings-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: wasConfirmed ? "edit" : "month",
+      month: state.savingsMonth,
+      title: wasConfirmed ? `${savingsShortMonth()}记录已修改` : `${savingsShortMonth()}记录已确认`,
+      estimated: salary - savingsExpenseTotal(),
+      actual,
+      balance: state.savings.currentBalance,
+      note: nextData.note,
+      createdAt: new Date().toISOString(),
+    });
+    state.savingsEditing = false;
+    if (!saveSavingsData(wasConfirmed ? "修改月度储蓄记录" : "确认月度储蓄记录")) {
+      state.savings = previousSavings;
+      return;
+    }
+    showToast(wasConfirmed ? "修改已保存并记录日志" : "本月记录已确认并锁定");
+    render();
+  });
+
+  content.querySelector("#confirmSavingsEdit")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    state.savingsEditing = true;
+    editDialog?.close();
+    render();
+    content.querySelector("#savingsSalary")?.focus();
+  });
+  content.querySelector("#cancelSavingsEdit")?.addEventListener("click", () => {
+    state.savingsEditing = false;
+    showToast("已取消编辑");
+    render();
+  });
+
+  const balanceDialog = content.querySelector("#savingsBalanceDialog");
+  content.querySelector("#adjustSavingsBalance")?.addEventListener("click", () => balanceDialog?.showModal());
+  content.querySelector("#savingsBalanceForm")?.addEventListener("submit", (event) => {
+    if (event.submitter?.value === "cancel") return;
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const nextBalance = Number(formData.get("balance"));
+    if (!Number.isFinite(nextBalance) || nextBalance < 0) return showToast("请输入正确的存款金额");
+    if (nextBalance === state.savings.currentBalance) {
+      balanceDialog?.close();
+      return showToast("金额没有变化");
+    }
+    const previousSavings = structuredClone(state.savings);
+    state.savings.currentBalance = nextBalance;
+    state.savings.logs.unshift({
+      id: `savings-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: "manual",
+      month: state.savingsMonth,
+      title: "手动调整当前存款",
+      estimated: savingsEstimate(),
+      actual: currentData.actual,
+      balance: nextBalance,
+      note: String(formData.get("note") || "").trim().slice(0, 60),
+      createdAt: new Date().toISOString(),
+    });
+    if (!saveSavingsData("手动调整当前存款")) {
+      state.savings = previousSavings;
+      return;
+    }
+    balanceDialog?.close();
+    showToast("当前存款已更新并记录日志");
+    render();
   });
 }
 
@@ -1360,13 +1637,14 @@ function isValidImportedExpense(record) {
   );
 }
 
-function persistAllData(records, lifeRecords, reason, collectionCategories = state.collectionCategories) {
+function persistAllData(records, lifeRecords, reason, collectionCategories = state.collectionCategories, savings = state.savings) {
   const recordsPayload = JSON.stringify(records);
   const lightRecords = imageLightRecords(records);
   localStorage.setItem(SCOPED_STORAGE_KEY, recordsPayload);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(lightRecords));
   localStorage.setItem(LIFE_STORAGE_KEY, JSON.stringify(lifeRecords));
   localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(collectionCategories));
+  localStorage.setItem(SAVINGS_STORAGE_KEY, JSON.stringify(savings));
   localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify({ records: lightRecords, reason, savedAt: new Date().toISOString() }));
 }
 
@@ -1388,7 +1666,9 @@ async function importBackupFile(file) {
     const archive = JSON.parse(await file.text());
     const importedRecords = Array.isArray(archive) ? archive : archive?.records;
     const hasLifeRecords = !Array.isArray(archive) && Object.prototype.hasOwnProperty.call(archive || {}, "lifeRecords");
+    const hasSavings = !Array.isArray(archive) && Object.prototype.hasOwnProperty.call(archive || {}, "savings");
     const importedLifeRecords = hasLifeRecords ? archive.lifeRecords : state.lifeRecords;
+    const importedSavings = hasSavings ? MiniProgramData.normalizeSavingsData(archive.savings) : structuredClone(state.savings);
     if (!Array.isArray(importedRecords) || !importedRecords.every(isValidImportedRecord)) throw new Error("invalid records");
     if (!Array.isArray(importedLifeRecords) || !importedLifeRecords.every(isValidImportedExpense)) throw new Error("invalid expenses");
     const collectionMerge = MiniProgramData.mergeRecords(state.records, importedRecords, "collection");
@@ -1402,7 +1682,7 @@ async function importBackupFile(file) {
       DEFAULT_COLLECTION_CATEGORIES,
     );
     const addedCategories = Math.max(0, categoryMerge.length - state.collectionCategories.length);
-    const message = `将以合并方式导入，不会清空本机数据。\n\n收藏：新增 ${collectionMerge.added} 条、更新 ${collectionMerge.updated} 条、跳过重复 ${collectionMerge.duplicates} 条\n生活支出：新增 ${lifeMerge.added} 笔、更新 ${lifeMerge.updated} 笔、跳过重复 ${lifeMerge.duplicates} 笔\n分类标签：新增 ${addedCategories} 个\n\n导入前会自动备份，确认继续吗？`;
+    const message = `将以合并方式导入，不会清空本机数据。\n\n收藏：新增 ${collectionMerge.added} 条、更新 ${collectionMerge.updated} 条、跳过重复 ${collectionMerge.duplicates} 条\n生活支出：新增 ${lifeMerge.added} 笔、更新 ${lifeMerge.updated} 笔、跳过重复 ${lifeMerge.duplicates} 笔\n储蓄：${hasSavings ? `使用备份中的 ${Object.keys(importedSavings.months).length} 个月记录` : "保留本机数据"}\n分类标签：新增 ${addedCategories} 个\n\n导入前会自动备份，确认继续吗？`;
     if (!window.confirm(message)) return;
 
     const beforeArchive = buildDataArchive();
@@ -1416,20 +1696,23 @@ async function importBackupFile(file) {
     const previousRecords = structuredClone(state.records);
     const previousLifeRecords = structuredClone(state.lifeRecords);
     const previousCategories = structuredClone(state.collectionCategories);
+    const previousSavings = structuredClone(state.savings);
     try {
       state.records = collectionMerge.records;
       state.lifeRecords = lifeMerge.records;
       state.collectionCategories = categoryMerge;
+      state.savings = importedSavings;
       state.loadedImageIds.clear();
       state.failedImageIds.clear();
-      persistAllData(state.records, state.lifeRecords, "合并导入", state.collectionCategories);
+      persistAllData(state.records, state.lifeRecords, "合并导入", state.collectionCategories, state.savings);
       addCollectionBackup("合并导入");
       backupAllData("合并导入");
     } catch (error) {
       state.records = previousRecords;
       state.lifeRecords = previousLifeRecords;
       state.collectionCategories = previousCategories;
-      persistAllData(previousRecords, previousLifeRecords, "导入失败自动还原", previousCategories);
+      state.savings = previousSavings;
+      persistAllData(previousRecords, previousLifeRecords, "导入失败自动还原", previousCategories, previousSavings);
       throw error;
     }
 
@@ -1460,7 +1743,7 @@ async function copyBackupToClipboard() {
     textarea.remove();
     if (!copied) throw new Error("copy failed");
   }
-  showToast(`已复制 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
+  showToast(`已复制完整数据，包含 ${Object.keys(state.savings.months).length} 个月储蓄记录`);
 }
 
 function findPreviousDataSnapshot() {
@@ -1474,7 +1757,7 @@ function findPreviousDataSnapshot() {
   for (const backup of getCollectionBackups()) {
     if (!backup?.payload || backup.payload === currentRecordsPayload) continue;
     const records = safeParse(backup.payload, null);
-    if (Array.isArray(records)) return { records, lifeRecords: structuredClone(state.lifeRecords), collectionCategories: structuredClone(state.collectionCategories) };
+    if (Array.isArray(records)) return { records, lifeRecords: structuredClone(state.lifeRecords), collectionCategories: structuredClone(state.collectionCategories), savings: structuredClone(state.savings) };
   }
   return null;
 }
@@ -1490,11 +1773,13 @@ function restorePreviousData() {
   const previousRecords = structuredClone(state.records);
   const previousLifeRecords = structuredClone(state.lifeRecords);
   const previousCategories = structuredClone(state.collectionCategories);
+  const previousSavings = structuredClone(state.savings);
   try {
     state.records = structuredClone(snapshot.records);
     state.lifeRecords = structuredClone(snapshot.lifeRecords);
     state.collectionCategories = MiniProgramData.normalizeCategoryConfig(snapshot.collectionCategories, state.records, DEFAULT_COLLECTION_CATEGORIES);
-    persistAllData(state.records, state.lifeRecords, "恢复上版", state.collectionCategories);
+    state.savings = MiniProgramData.normalizeSavingsData(snapshot.savings || state.savings);
+    persistAllData(state.records, state.lifeRecords, "恢复上版", state.collectionCategories, state.savings);
     addCollectionBackup("恢复上版");
     backupAllData("恢复上版");
     const collectionYears = state.records.map(yearOf).filter(Number.isFinite);
@@ -1507,16 +1792,22 @@ function restorePreviousData() {
     state.records = previousRecords;
     state.lifeRecords = previousLifeRecords;
     state.collectionCategories = previousCategories;
-    try { persistAllData(previousRecords, previousLifeRecords, "恢复失败自动还原", previousCategories); } catch {}
+    state.savings = previousSavings;
+    try { persistAllData(previousRecords, previousLifeRecords, "恢复失败自动还原", previousCategories, previousSavings); } catch {}
     showToast("恢复失败，当前数据未改变");
   }
 }
 
 function bindProfileEvents() {
+  content.querySelector("#toggleSavingsPrivacy")?.addEventListener("click", () => {
+    state.savingsBalanceHidden = !state.savingsBalanceHidden;
+    localStorage.setItem(SAVINGS_PRIVACY_KEY, String(state.savingsBalanceHidden));
+    render();
+  });
   content.querySelector("#exportBackup")?.addEventListener("click", () => {
     backupAllData("手动导出");
     downloadArchive(buildDataArchive(), `hangar07-backup-${todayValue()}.json`);
-    showToast(`已导出 ${state.records.length} 条收藏、${state.lifeRecords.length} 笔支出`);
+    showToast(`已导出完整数据，包含 ${Object.keys(state.savings.months).length} 个月储蓄记录`);
   });
   content.querySelector("#copyBackup")?.addEventListener("click", async () => {
     try { await copyBackupToClipboard(); } catch { showToast("复制失败，请改用导出数据"); }
@@ -1538,21 +1829,26 @@ function bindProfileEvents() {
     navigate("collection");
   });
   content.querySelector("#clearTestData")?.addEventListener("click", () => {
-    if (!state.records.length && !state.lifeRecords.length) return showToast("当前没有可清空的测试数据");
-    if (!window.confirm("确定一键清空当前设备中的全部收藏与生活记账吗？清空前会自动保存本机备份。")) return;
+    const hasSavingsData = state.savings.currentBalance !== 0 || Object.keys(state.savings.months).length || state.savings.logs.length;
+    if (!state.records.length && !state.lifeRecords.length && !hasSavingsData) return showToast("当前没有可清空的测试数据");
+    if (!window.confirm("确定一键清空当前设备中的全部收藏、生活记账与储蓄数据吗？清空前会自动保存本机备份。")) return;
     if (!backupAllData("清空测试数据前自动备份")) return showToast("本机备份空间不足，已取消清空");
     const previousRecords = structuredClone(state.records);
     const previousLifeRecords = structuredClone(state.lifeRecords);
     const previousCategories = structuredClone(state.collectionCategories);
+    const previousSavings = structuredClone(state.savings);
     try {
       localStorage.setItem(SCOPED_STORAGE_KEY, "[]");
       localStorage.setItem(STORAGE_KEY, "[]");
       localStorage.setItem(LIFE_STORAGE_KEY, "[]");
       localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(DEFAULT_COLLECTION_CATEGORIES.map((name) => ({ name, hidden: false }))));
+      localStorage.setItem(SAVINGS_STORAGE_KEY, JSON.stringify({ currentBalance: 0, months: {}, logs: [] }));
       localStorage.removeItem(PENDING_SYNC_KEY);
       state.records = [];
       state.lifeRecords = [];
       state.collectionCategories = DEFAULT_COLLECTION_CATEGORIES.map((name) => ({ name, hidden: false }));
+      state.savings = { currentBalance: 0, months: {}, logs: [] };
+      state.savingsEditing = false;
       state.collectionStatus = "全部";
       state.collectionCategory = "全部分类";
       state.loadedImageIds.clear();
@@ -1565,7 +1861,8 @@ function bindProfileEvents() {
       state.records = previousRecords;
       state.lifeRecords = previousLifeRecords;
       state.collectionCategories = previousCategories;
-      try { persistAllData(previousRecords, previousLifeRecords, "清空失败自动还原", previousCategories); } catch {}
+      state.savings = previousSavings;
+      try { persistAllData(previousRecords, previousLifeRecords, "清空失败自动还原", previousCategories, previousSavings); } catch {}
       showToast("清空失败：本机存储不可用");
     }
   });
@@ -1822,6 +2119,7 @@ function bindCollectionWallEvents() {
 function bindViewEvents() {
   bindCommonButtons();
   if (state.route === "life") bindLifeEvents();
+  if (state.route === "savings") bindSavingsEvents();
   if (state.route === "collection") bindCollectionEvents();
   if (state.route === "profile") bindProfileEvents();
   if (state.route === "collection-wall") bindCollectionWallEvents();
@@ -1859,6 +2157,7 @@ content.addEventListener("scroll", () => {
 state.records = loadRecords();
 state.lifeRecords = loadLifeRecords();
 state.collectionCategories = loadCollectionCategories(state.records);
+state.savings = loadSavingsData();
 state.selectedYear = [...new Set([new Date().getFullYear(), ...state.records.map(yearOf)])].sort((a, b) => b - a)[0];
 if (!location.hash) history.replaceState(null, "", "#/dashboard");
 render();

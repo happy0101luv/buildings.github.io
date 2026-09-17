@@ -130,7 +130,7 @@ img { display: block; max-width: 100%; }
   height: calc(56px + env(safe-area-inset-bottom, 0px));
   padding: 4px 6px env(safe-area-inset-bottom, 0px);
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: rgba(253, 252, 249, .98);
   border-top: 1px solid #ebe8e2;
 }
@@ -633,6 +633,99 @@ img { display: block; max-width: 100%; }
 .form-save-bar[hidden] { display: none; }
 .form-save-bar button { width: 100%; height: 49px; border: 0; border-radius: 6px; background: var(--red); color: #fff; font-size: 16px; font-weight: 850; }
 .delete-record { width: 100%; height: 42px; margin-top: 8px; border: 1px solid #efb0ad; border-radius: 6px; background: #fff; color: var(--red); font-size: 13px; font-weight: 800; }
+
+/* Savings */
+.savings-page { padding-top: 13px; }
+.savings-balance-card { position: relative; min-height: 174px; overflow: hidden; padding: 19px 17px 16px; border-radius: 9px; background: #171513; color: #fff; box-shadow: var(--shadow); }
+.savings-balance-card::before { content: ""; position: absolute; right: -32px; top: 14px; width: 108px; height: 108px; border: 1px solid rgba(255,255,255,.07); border-radius: 50%; box-shadow: 0 0 0 18px rgba(255,255,255,.025), 0 0 0 36px rgba(255,255,255,.015); }
+.savings-balance-card::after { content: ""; position: absolute; inset: auto 0 0; height: 4px; background: repeating-linear-gradient(135deg, var(--red) 0 11px, #171513 11px 22px); }
+.savings-balance-head, .savings-plan-head { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.savings-balance-head h2, .savings-plan-head h2, .savings-log-head h2 { margin: 0; font-size: 18px; line-height: 23px; font-weight: 900; }
+.savings-balance-head button { height: 29px; padding: 0 10px; border: 1px solid #514d48; border-radius: 15px; display: inline-flex; align-items: center; gap: 5px; background: #26231f; color: #f5f2ed; font-size: 11px; }
+.savings-balance-head button svg { width: 13px; height: 13px; }
+.savings-balance-amount { position: relative; margin: 16px 0 17px; overflow: hidden; font-family: Georgia, serif; font-size: 40px; line-height: 44px; font-weight: 800; letter-spacing: -.7px; text-overflow: ellipsis; white-space: nowrap; }
+.savings-balance-meta { position: relative; display: flex; align-items: center; justify-content: space-between; color: #bbb6af; font-size: 10px; }
+.savings-balance-meta span { display: inline-flex; align-items: center; }
+.savings-balance-meta span > i { width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: #52a77c; }
+.savings-month-toolbar { position: relative; height: 50px; display: grid; grid-template-columns: 38px 1fr 38px; align-items: center; }
+.savings-month-toolbar > button { height: 38px; border: 0; background: transparent; color: var(--muted); font-size: 25px; }
+.savings-month-toolbar label { position: relative; height: 42px; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 14px; font-weight: 850; }
+.savings-month-toolbar label svg { width: 15px; height: 15px; }
+.savings-month-toolbar input { position: absolute; inset: 0; width: 100%; opacity: 0; }
+.savings-plan-card { padding: 17px 14px 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.savings-status { padding: 4px 8px; border: 1px solid #efc0c1; border-radius: 13px; background: #fff5f5; color: var(--red); font-size: 10px; font-weight: 850; }
+.savings-status.confirmed { border-color: #bad7c8; background: #eff8f3; color: #39755a; }
+.savings-field { display: block; margin-top: 15px; }
+.savings-field > span { display: block; margin-bottom: 6px; color: #655f58; font-size: 12px; }
+.savings-field > span small { margin-left: 5px; color: var(--soft); font-size: 9px; }
+.savings-field > div { height: 45px; padding: 0 11px; border: 1px solid #d8d3cc; border-radius: 6px; display: flex; align-items: center; background: #fff; }
+.savings-field > div:focus-within { border-color: #a59e96; box-shadow: 0 0 0 2px rgba(211,38,42,.07); }
+.savings-field b { margin-right: 7px; color: var(--red); font-size: 17px; }
+.savings-field input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 17px; font-weight: 800; }
+.savings-field input::placeholder { color: var(--soft); font-size: 13px; font-weight: 500; }
+.savings-note { margin-top: 12px; }
+.savings-note input { font-size: 13px; font-weight: 500; }
+.savings-expense-row, .savings-estimate { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.savings-expense-row { margin-top: 8px; border-bottom: 1px solid #e8e4df; }
+.savings-expense-row span, .savings-estimate span { display: block; color: #655f58; font-size: 12px; }
+.savings-expense-row small, .savings-estimate small { display: block; margin-top: 3px; color: var(--soft); font-size: 9px; }
+.savings-expense-row small i { display: inline-block; width: 5px; height: 5px; margin-right: 4px; border-radius: 50%; background: #4f9870; }
+.savings-expense-row strong { font-size: 18px; }
+.savings-formula { height: 25px; display: grid; grid-template-columns: 1fr 25px 1fr 25px 1.2fr; align-items: center; color: var(--soft); font-size: 9px; text-align: center; }
+.savings-formula i { font-style: normal; font-size: 12px; }
+.savings-estimate { min-height: 65px; margin: 0 -5px; padding: 0 8px; border-left: 3px solid var(--red); background: #f4f1ed; }
+.savings-estimate strong { color: var(--red); font-size: 20px; }
+.savings-change-hint { min-height: 16px; margin: 8px 1px 11px; color: var(--soft); font-size: 9px; line-height: 16px; }
+.savings-change-hint.positive { color: #39755a; }
+.savings-change-hint.negative { color: var(--red); }
+.savings-form-actions { display: flex; gap: 7px; }
+.savings-form-actions button { height: 44px; border-radius: 6px; font-size: 13px; font-weight: 850; }
+.savings-form-actions .primary { min-width: 0; flex: 1; border: 0; background: var(--red); color: #fff; }
+.savings-form-actions .secondary { padding: 0 14px; border: 1px solid #d4cfc8; background: #fff; color: var(--muted); }
+.savings-plan-card.is-locked .savings-field > div { background: #f1efeb; }
+.savings-plan-card.is-locked .savings-field input { color: #746e65; }
+.savings-plan-card.is-locked .savings-estimate { border-left-color: #9e9891; }
+.savings-plan-card.is-locked .savings-estimate strong { color: #292521; }
+.savings-plan-card.is-locked .savings-form-actions .primary { background: #171513; }
+.savings-log-head { display: flex; align-items: flex-end; justify-content: space-between; margin: 20px 2px 8px; }
+.savings-log-list { display: grid; gap: 8px; }
+.savings-log-item { position: relative; padding: 12px 10px 11px 41px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+.savings-log-item > svg { position: absolute; left: 10px; top: 12px; width: 23px; height: 23px; padding: 5px; border: 1px solid #d8d3cc; border-radius: 50%; color: var(--muted); }
+.savings-log-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.savings-log-title strong { font-size: 12px; }
+.savings-log-title time { color: var(--soft); font-size: 8px; }
+.savings-log-body dl { margin: 0; }
+.savings-log-body dl div { min-height: 25px; display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid #eeeae5; }
+.savings-log-body dt { color: #8b847c; font-size: 9px; }
+.savings-log-body dd { margin: 0; font-size: 10px; font-weight: 800; text-align: right; }
+.savings-log-body .savings-log-note { align-items: flex-start; padding-top: 6px; }
+.savings-log-note dd { max-width: 72%; font-weight: 500; line-height: 15px; }
+.savings-dialog { width: min(360px, calc(100vw - 28px)); padding: 0; border: 0; border-radius: 10px; background: #faf9f7; color: var(--ink); box-shadow: 0 20px 60px rgba(0,0,0,.28); }
+.savings-dialog::backdrop { background: rgba(20,18,16,.48); }
+.savings-dialog form { padding: 17px 15px 15px; }
+.savings-dialog h2 { margin: 4px 0 8px; font-size: 19px; }
+.savings-dialog form > p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 11px; line-height: 18px; }
+.savings-dialog form > div:last-child { display: grid; grid-template-columns: 1fr 1.2fr; gap: 7px; margin-top: 15px; }
+.savings-dialog form > div:last-child button { height: 42px; border: 1px solid #d5d0c9; border-radius: 6px; background: #fff; color: var(--muted); font-size: 12px; font-weight: 850; }
+.savings-dialog form > div:last-child button:last-child { border-color: var(--red); background: var(--red); color: #fff; }
+
+/* Profile savings summary */
+.profile-savings-card { position: relative; overflow: hidden; margin: 13px 0 15px; border: 1px solid var(--line); border-radius: 7px; background: #fff; box-shadow: 0 4px 14px rgba(32,26,21,.04); }
+.profile-savings-card::before { content: ""; position: absolute; inset: 0 auto 0 0; z-index: 2; width: 4px; background: var(--red); }
+.profile-savings-main { width: 100%; min-height: 126px; padding: 14px 13px 11px 17px; border: 0; display: block; background: transparent; color: inherit; text-align: left; }
+.profile-savings-head h3 { margin: 0; font-size: 14px; }
+.profile-savings-privacy { position: absolute; z-index: 4; right: 9px; top: 10px; width: 29px; height: 29px; padding: 5px; border: 0; background: transparent; color: var(--muted); }
+.profile-savings-privacy svg { width: 18px; height: 18px; }
+.profile-savings-amount { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-right: 2px; }
+.profile-savings-amount strong { min-width: 0; overflow: hidden; font-family: Georgia, serif; font-size: 28px; line-height: 34px; letter-spacing: -.5px; text-overflow: ellipsis; white-space: nowrap; }
+.profile-savings-amount > span { flex: none; width: 89px; height: 29px; margin-right: 32px; border: 1px solid #efb3b4; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: var(--red); font-size: 11px; font-weight: 850; }
+.profile-savings-amount > span b { margin-left: 4px; font-size: 16px; }
+.profile-savings-meta { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #e8e4df; }
+.profile-savings-meta div { min-width: 0; padding-top: 8px; color: #8b847c; font-size: 10px; white-space: nowrap; }
+.profile-savings-meta div + div { padding-left: 11px; border-left: 1px solid #e8e4df; }
+.profile-savings-meta b { margin-left: 5px; color: #292521; font-size: 10px; }
+.profile-savings-meta div:last-child b { color: var(--red); }
+.profile-savings-card + .profile-section-title { margin-top: 0; }
 
 @media (min-width: 600px) {
   body { display: grid; place-items: center; padding: 18px; }
