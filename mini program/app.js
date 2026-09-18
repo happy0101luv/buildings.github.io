@@ -68,9 +68,10 @@ const state = {
   failedImageIds: new Set(),
   retryFailedImages: false,
   profile: { username: "本地镜像", authenticated: true },
-  savings: { currentBalance: 0, months: {}, logs: [] },
+  savings: { currentBalance: 0, months: {}, transactions: [], logs: [] },
   savingsMonth: MiniProgramData.currentMonthKey(),
   savingsEditing: false,
+  savingsRecordView: "ledger",
   savingsBalanceHidden: localStorage.getItem(SAVINGS_PRIVACY_KEY) === "true",
 };
 
@@ -104,6 +105,7 @@ function loadSavingsData() {
 
 function saveSavingsData(reason = "储蓄数据更新") {
   try {
+    state.savings.currentBalance = MiniProgramData.savingsLedgerBalance(state.savings.transactions);
     localStorage.setItem(SAVINGS_STORAGE_KEY, JSON.stringify(state.savings));
     backupAllData(reason);
     return true;
@@ -724,6 +726,23 @@ function savingsShortMonth(month = state.savingsMonth) {
   return `${Number(month.slice(5))} 月`;
 }
 
+function savingsLedgerRows() {
+  let balance = 0;
+  return state.savings.transactions.map((transaction) => ({
+    ...transaction,
+    balanceAfter: balance += Number(transaction.amount || 0),
+  })).reverse();
+}
+
+function savingsTransactionView(transaction) {
+  const time = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(transaction.createdAt));
+  const positive = Number(transaction.amount) >= 0;
+  return `<article class="savings-transaction-item">
+    <div><strong>${escapeHtml(transaction.title)}</strong><p>${escapeHtml(transaction.note || "无备注")}</p><time>${escapeHtml(time)}</time></div>
+    <div><b class="${positive ? "positive" : "negative"}">${positive ? "+" : "−"}${savingsMoney(Math.abs(transaction.amount))}</b><span>余额 ${savingsMoney(transaction.balanceAfter)}</span></div>
+  </article>`;
+}
+
 function savingsLogView(log) {
   const icon = log.type === "manual" ? "pen-line" : log.type === "edit" ? "file-pen-line" : "check";
   const time = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(log.createdAt));
@@ -748,6 +767,8 @@ function savingsView() {
   const locked = Boolean(data.confirmed) && !state.savingsEditing;
   const status = data.confirmed ? (data.actual == null ? "已记录" : "已入账") : "待确认";
   const logs = state.savings.logs;
+  const ledgerRows = savingsLedgerRows();
+  const ledgerActive = state.savingsRecordView !== "log";
   return `<section class="page savings-page">
     <div class="savings-balance-card">
       <div class="savings-balance-head"><div><p class="eyebrow">CURRENT DEPOSIT</p><h2>当前存款</h2></div><button id="adjustSavingsBalance" type="button"><i data-lucide="pen-line"></i>调整</button></div>
@@ -773,14 +794,19 @@ function savingsView() {
       <div class="savings-form-actions">${state.savingsEditing ? '<button class="secondary" id="cancelSavingsEdit" type="button">取消编辑</button>' : ""}<button class="primary" id="saveSavingsMonth" type="button">${locked ? "编辑本月记录" : state.savingsEditing ? "保存修改" : "确认本月记录"}</button></div>
     </div>
 
-    <div class="savings-log-head"><div><p class="eyebrow">CHANGE LOG</p><h2>储蓄日志</h2></div></div>
-    <div class="savings-log-list">${logs.length ? logs.map(savingsLogView).join("") : '<div class="empty-state"><p>还没有储蓄记录</p></div>'}</div>
+    <section class="savings-records">
+      <div class="savings-record-head"><div><p class="eyebrow">${ledgerActive ? "ACCOUNT LEDGER" : "CHANGE LOG"}</p><h2>${ledgerActive ? "资金流水" : "储蓄日志"}</h2><small>${ledgerActive ? "只有这里的金额会改变当前存款" : "记录每一次确认、编辑与手动调整"}</small></div><span>${ledgerActive ? `${ledgerRows.length} 笔流水` : `${logs.length} 条日志`}</span></div>
+      <div class="savings-record-tabs" role="tablist" aria-label="储蓄记录类型"><button type="button" data-savings-record-view="ledger" class="${ledgerActive ? "active" : ""}" role="tab" aria-selected="${ledgerActive}">资金流水</button><button type="button" data-savings-record-view="log" class="${ledgerActive ? "" : "active"}" role="tab" aria-selected="${!ledgerActive}">操作日志</button></div>
+      ${ledgerActive
+        ? `<div class="savings-ledger-list">${ledgerRows.length ? ledgerRows.map(savingsTransactionView).join("") : '<div class="empty-state"><p>还没有资金流水</p></div>'}</div>`
+        : `<div class="savings-log-list">${logs.length ? logs.map(savingsLogView).join("") : '<div class="empty-state"><p>还没有储蓄日志</p></div>'}</div>`}
+    </section>
 
     <dialog class="savings-dialog" id="savingsEditDialog">
-      <form method="dialog"><p class="eyebrow">EDIT CONFIRMATION</p><h2>编辑已确认记录？</h2><p>确认后才会解锁本月数据。再次保存时将重新计算当前存款，并生成一条修改日志。</p><div><button value="cancel" type="submit">暂不编辑</button><button id="confirmSavingsEdit" value="default" type="submit">确认编辑</button></div></form>
+      <form method="dialog"><p class="eyebrow">EDIT CONFIRMATION</p><h2>编辑已确认记录？</h2><p>确认后才会解锁本月数据。再次保存时只会把实际储蓄的差额写入资金流水，并生成一条修改日志。</p><div><button value="cancel" type="submit">暂不编辑</button><button id="confirmSavingsEdit" value="default" type="submit">确认编辑</button></div></form>
     </dialog>
     <dialog class="savings-dialog" id="savingsBalanceDialog">
-      <form method="dialog" id="savingsBalanceForm"><p class="eyebrow">BALANCE ADJUSTMENT</p><h2>调整当前存款</h2><p>用于补录原有存款、利息或其他修正，保存后会写入日志。</p><label class="savings-field"><span>调整后的存款</span><div><b>¥</b><input name="balance" type="number" min="0" step="0.01" inputmode="decimal" value="${state.savings.currentBalance}" required /></div></label><label class="savings-field savings-note"><span>变更说明 <small>选填</small></span><div><input name="note" type="text" maxlength="60" placeholder="例如：补录原有存款" /></div></label><div><button value="cancel" type="submit">取消</button><button value="default" type="submit">确认调整</button></div></form>
+      <form method="dialog" id="savingsBalanceForm"><p class="eyebrow">BALANCE ADJUSTMENT</p><h2>调整当前存款</h2><p>用于补录原有存款、利息或其他修正，保存后会按差额新增资金流水和操作日志。</p><label class="savings-field"><span>调整后的存款</span><div><b>¥</b><input name="balance" type="number" min="0" step="0.01" inputmode="decimal" value="${state.savings.currentBalance}" required /></div></label><label class="savings-field savings-note"><span>变更说明 <small>选填</small></span><div><input name="note" type="text" maxlength="60" placeholder="例如：补录原有存款" /></div></label><div><button value="cancel" type="submit">取消</button><button value="default" type="submit">确认调整</button></div></form>
     </dialog>
   </section>`;
 }
@@ -1151,6 +1177,11 @@ function bindSavingsEvents() {
   const hintElement = content.querySelector("#savingsChangeHint");
   const currentData = savingsMonthData();
 
+  content.querySelectorAll("[data-savings-record-view]").forEach((button) => button.addEventListener("click", () => {
+    state.savingsRecordView = button.dataset.savingsRecordView === "log" ? "log" : "ledger";
+    render();
+  }));
+
   const inputNumber = (input) => {
     if (!input || input.value.trim() === "") return null;
     const value = Number(input.value);
@@ -1213,14 +1244,29 @@ function bindSavingsEvents() {
     const previousSavings = structuredClone(state.savings);
     const delta = MiniProgramData.savingsActualDelta(currentData.actual, actual);
     const wasConfirmed = Boolean(currentData.confirmed);
+    const createdAt = new Date().toISOString();
+    const balanceBefore = MiniProgramData.savingsLedgerBalance(state.savings.transactions);
     const nextData = {
       salary,
       actual,
       note: String(noteInput?.value || "").trim().slice(0, 60),
       confirmed: true,
-      confirmedAt: new Date().toISOString(),
+      confirmedAt: createdAt,
     };
-    state.savings.currentBalance += delta;
+    if (delta !== 0) {
+      const id = `transaction-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      state.savings.transactions.push({
+        id,
+        operationId: id,
+        type: wasConfirmed ? "monthly_adjustment" : "monthly_saving",
+        month: state.savingsMonth,
+        title: wasConfirmed ? `${savingsShortMonth()}储蓄修正` : `${savingsShortMonth()}实际储蓄`,
+        amount: delta,
+        note: wasConfirmed ? `实际储蓄由 ${savingsMoney(currentData.actual)} 修改为 ${savingsMoney(actual)}` : nextData.note || "月度记录首次确认",
+        createdAt,
+      });
+    }
+    state.savings.currentBalance = MiniProgramData.savingsLedgerBalance(state.savings.transactions);
     state.savings.months[state.savingsMonth] = nextData;
     state.savings.logs.unshift({
       id: `savings-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -1230,8 +1276,10 @@ function bindSavingsEvents() {
       estimated: salary - savingsExpenseTotal(),
       actual,
       balance: state.savings.currentBalance,
+      balanceBefore,
+      balanceAfter: state.savings.currentBalance,
       note: nextData.note,
-      createdAt: new Date().toISOString(),
+      createdAt,
     });
     state.savingsEditing = false;
     if (!saveSavingsData(wasConfirmed ? "修改月度储蓄记录" : "确认月度储蓄记录")) {
@@ -1263,22 +1311,40 @@ function bindSavingsEvents() {
     const formData = new FormData(event.currentTarget);
     const nextBalance = Number(formData.get("balance"));
     if (!Number.isFinite(nextBalance) || nextBalance < 0) return showToast("请输入正确的存款金额");
-    if (nextBalance === state.savings.currentBalance) {
+    const balanceBefore = MiniProgramData.savingsLedgerBalance(state.savings.transactions);
+    if (nextBalance === balanceBefore) {
       balanceDialog?.close();
       return showToast("金额没有变化");
     }
     const previousSavings = structuredClone(state.savings);
-    state.savings.currentBalance = nextBalance;
+    const delta = nextBalance - balanceBefore;
+    const createdAt = new Date().toISOString();
+    const note = String(formData.get("note") || "").trim().slice(0, 60);
+    const id = `transaction-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const isOpeningBalance = state.savings.transactions.length === 0;
+    state.savings.transactions.push({
+      id,
+      operationId: id,
+      type: isOpeningBalance ? "opening_balance" : delta > 0 ? "manual_increase" : "manual_decrease",
+      month: state.savingsMonth,
+      title: isOpeningBalance ? "期初存款" : delta > 0 ? "手动增加存款" : "手动减少存款",
+      amount: delta,
+      note: note || (isOpeningBalance ? "首次录入当前存款" : "手动校正当前存款"),
+      createdAt,
+    });
+    state.savings.currentBalance = MiniProgramData.savingsLedgerBalance(state.savings.transactions);
     state.savings.logs.unshift({
       id: `savings-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       type: "manual",
       month: state.savingsMonth,
       title: "手动调整当前存款",
-      estimated: savingsEstimate(),
-      actual: currentData.actual,
-      balance: nextBalance,
-      note: String(formData.get("note") || "").trim().slice(0, 60),
-      createdAt: new Date().toISOString(),
+      estimated: null,
+      actual: null,
+      balance: state.savings.currentBalance,
+      balanceBefore,
+      balanceAfter: state.savings.currentBalance,
+      note,
+      createdAt,
     });
     if (!saveSavingsData("手动调整当前存款")) {
       state.savings = previousSavings;
@@ -1829,7 +1895,7 @@ function bindProfileEvents() {
     navigate("collection");
   });
   content.querySelector("#clearTestData")?.addEventListener("click", () => {
-    const hasSavingsData = state.savings.currentBalance !== 0 || Object.keys(state.savings.months).length || state.savings.logs.length;
+    const hasSavingsData = state.savings.currentBalance !== 0 || Object.keys(state.savings.months).length || state.savings.transactions.length || state.savings.logs.length;
     if (!state.records.length && !state.lifeRecords.length && !hasSavingsData) return showToast("当前没有可清空的测试数据");
     if (!window.confirm("确定一键清空当前设备中的全部收藏、生活记账与储蓄数据吗？清空前会自动保存本机备份。")) return;
     if (!backupAllData("清空测试数据前自动备份")) return showToast("本机备份空间不足，已取消清空");
@@ -1842,13 +1908,14 @@ function bindProfileEvents() {
       localStorage.setItem(STORAGE_KEY, "[]");
       localStorage.setItem(LIFE_STORAGE_KEY, "[]");
       localStorage.setItem(COLLECTION_CATEGORIES_KEY, JSON.stringify(DEFAULT_COLLECTION_CATEGORIES.map((name) => ({ name, hidden: false }))));
-      localStorage.setItem(SAVINGS_STORAGE_KEY, JSON.stringify({ currentBalance: 0, months: {}, logs: [] }));
+      localStorage.setItem(SAVINGS_STORAGE_KEY, JSON.stringify({ currentBalance: 0, months: {}, transactions: [], logs: [] }));
       localStorage.removeItem(PENDING_SYNC_KEY);
       state.records = [];
       state.lifeRecords = [];
       state.collectionCategories = DEFAULT_COLLECTION_CATEGORIES.map((name) => ({ name, hidden: false }));
-      state.savings = { currentBalance: 0, months: {}, logs: [] };
+      state.savings = { currentBalance: 0, months: {}, transactions: [], logs: [] };
       state.savingsEditing = false;
+      state.savingsRecordView = "ledger";
       state.collectionStatus = "全部";
       state.collectionCategory = "全部分类";
       state.loadedImageIds.clear();

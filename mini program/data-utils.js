@@ -243,9 +243,16 @@
     return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
   }
 
+  function savingsLedgerBalance(transactions) {
+    return (Array.isArray(transactions) ? transactions : []).reduce((sum, transaction) => {
+      const amount = Number(transaction?.amount);
+      return sum + (Number.isFinite(amount) ? amount : 0);
+    }, 0);
+  }
+
   function normalizeSavingsData(source) {
     const raw = source && typeof source === "object" ? source : {};
-    const currentBalance = Number(raw.currentBalance);
+    const legacyCurrentBalance = Number(raw.currentBalance);
     const months = {};
     for (const [month, entry] of Object.entries(raw.months || {})) {
       if (!/^\d{4}-\d{2}$/.test(month) || !entry || typeof entry !== "object") continue;
@@ -259,20 +266,66 @@
         confirmedAt: entry.confirmedAt || "",
       };
     }
-    const logs = (Array.isArray(raw.logs) ? raw.logs : []).filter((log) => log && typeof log === "object").map((log) => ({
-      id: String(log.id || `savings-${Date.now()}-${Math.random().toString(16).slice(2)}`),
-      type: ["month", "edit", "manual"].includes(log.type) ? log.type : "month",
-      month: /^\d{4}-\d{2}$/.test(String(log.month || "")) ? String(log.month) : "",
-      title: String(log.title || "储蓄记录"),
-      estimated: log.estimated == null ? null : Number(log.estimated),
-      actual: log.actual == null ? null : Number(log.actual),
-      balance: Number.isFinite(Number(log.balance)) ? Number(log.balance) : 0,
-      note: String(log.note || "").trim().slice(0, 60),
-      createdAt: log.createdAt || new Date().toISOString(),
-    }));
+    const logs = (Array.isArray(raw.logs) ? raw.logs : []).filter((log) => log && typeof log === "object").map((log) => {
+      const balanceAfter = Number(log.balanceAfter ?? log.balance);
+      const balanceBefore = log.balanceBefore == null ? null : Number(log.balanceBefore);
+      return {
+        id: String(log.id || `savings-${Date.now()}-${Math.random().toString(16).slice(2)}`),
+        type: ["month", "edit", "manual"].includes(log.type) ? log.type : "month",
+        month: /^\d{4}-\d{2}$/.test(String(log.month || "")) ? String(log.month) : "",
+        title: String(log.title || "储蓄记录"),
+        estimated: log.estimated == null || !Number.isFinite(Number(log.estimated)) ? null : Number(log.estimated),
+        actual: log.actual == null || !Number.isFinite(Number(log.actual)) ? null : Number(log.actual),
+        balance: Number.isFinite(balanceAfter) ? balanceAfter : 0,
+        balanceBefore: Number.isFinite(balanceBefore) ? balanceBefore : null,
+        balanceAfter: Number.isFinite(balanceAfter) ? balanceAfter : 0,
+        note: String(log.note || "").trim().slice(0, 60),
+        createdAt: log.createdAt || new Date().toISOString(),
+      };
+    });
+
+    const transactions = [];
+    const seenIds = new Set();
+    const seenOperations = new Set();
+    for (const transaction of Array.isArray(raw.transactions) ? raw.transactions : []) {
+      if (!transaction || typeof transaction !== "object") continue;
+      const amount = Number(transaction.amount);
+      if (!Number.isFinite(amount) || amount === 0) continue;
+      const id = String(transaction.id || `transaction-${Date.now()}-${transactions.length}`);
+      const operationId = String(transaction.operationId || id);
+      if (seenIds.has(id) || seenOperations.has(operationId)) continue;
+      seenIds.add(id);
+      seenOperations.add(operationId);
+      transactions.push({
+        id,
+        operationId,
+        type: ["opening_balance", "monthly_saving", "monthly_adjustment", "manual_increase", "manual_decrease", "reversal"].includes(transaction.type) ? transaction.type : "manual_increase",
+        month: /^\d{4}-\d{2}$/.test(String(transaction.month || "")) ? String(transaction.month) : "",
+        title: String(transaction.title || "储蓄变动"),
+        amount,
+        note: String(transaction.note || "").trim().slice(0, 60),
+        createdAt: transaction.createdAt || new Date().toISOString(),
+      });
+    }
+
+    if (!Array.isArray(raw.transactions) && Number.isFinite(legacyCurrentBalance) && legacyCurrentBalance !== 0) {
+      transactions.push({
+        id: "legacy-opening-balance",
+        operationId: "legacy-opening-balance",
+        type: "opening_balance",
+        month: "",
+        title: "期初存款",
+        amount: legacyCurrentBalance,
+        note: "由原有当前存款自动迁移",
+        createdAt: logs[logs.length - 1]?.createdAt || new Date().toISOString(),
+      });
+    }
+
+    const currentBalance = savingsLedgerBalance(transactions);
     return {
-      currentBalance: Number.isFinite(currentBalance) ? currentBalance : 0,
+      currentBalance,
       months,
+      transactions,
       logs,
     };
   }
@@ -307,6 +360,7 @@
     recordFingerprint,
     summarizeCollectionRecords,
     savingsActualDelta,
+    savingsLedgerBalance,
     toggleCategoryVisibility,
   };
 })(typeof window === "undefined" ? globalThis : window);

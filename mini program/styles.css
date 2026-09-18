@@ -640,7 +640,7 @@ img { display: block; max-width: 100%; }
 .savings-balance-card::before { content: ""; position: absolute; right: -32px; top: 14px; width: 108px; height: 108px; border: 1px solid rgba(255,255,255,.07); border-radius: 50%; box-shadow: 0 0 0 18px rgba(255,255,255,.025), 0 0 0 36px rgba(255,255,255,.015); }
 .savings-balance-card::after { content: ""; position: absolute; inset: auto 0 0; height: 4px; background: repeating-linear-gradient(135deg, var(--red) 0 11px, #171513 11px 22px); }
 .savings-balance-head, .savings-plan-head { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.savings-balance-head h2, .savings-plan-head h2, .savings-log-head h2 { margin: 0; font-size: 18px; line-height: 23px; font-weight: 900; }
+.savings-balance-head h2, .savings-plan-head h2, .savings-log-head h2, .savings-record-head h2 { margin: 0; font-size: 18px; line-height: 23px; font-weight: 900; }
 .savings-balance-head button { height: 29px; padding: 0 10px; border: 1px solid #514d48; border-radius: 15px; display: inline-flex; align-items: center; gap: 5px; background: #26231f; color: #f5f2ed; font-size: 11px; }
 .savings-balance-head button svg { width: 13px; height: 13px; }
 .savings-balance-amount { position: relative; margin: 16px 0 17px; overflow: hidden; font-family: inherit; font-size: 40px; line-height: 44px; font-weight: 800; letter-spacing: -.7px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
@@ -687,6 +687,24 @@ img { display: block; max-width: 100%; }
 .savings-plan-card.is-locked .savings-estimate { border-left-color: #9e9891; }
 .savings-plan-card.is-locked .savings-estimate strong { color: #292521; }
 .savings-plan-card.is-locked .savings-form-actions .primary { background: #171513; }
+.savings-records { margin-top: 20px; }
+.savings-record-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin: 0 2px 9px; }
+.savings-record-head small { display: block; margin-top: 3px; color: var(--soft); font-size: 9px; }
+.savings-record-head > span { flex: none; color: var(--soft); font-size: 9px; }
+.savings-record-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-bottom: 8px; padding: 3px; border-radius: 8px; background: #e8e5e0; }
+.savings-record-tabs button { height: 36px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 800; }
+.savings-record-tabs button.active { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(45,39,33,.08); }
+.savings-ledger-list { overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: #fff; }
+.savings-transaction-item { min-height: 69px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 12px 10px; border-bottom: 1px solid #eeeae5; }
+.savings-transaction-item:last-child { border-bottom: 0; }
+.savings-transaction-item > div:first-child { min-width: 0; }
+.savings-transaction-item strong { display: block; overflow: hidden; margin-bottom: 3px; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.savings-transaction-item p, .savings-transaction-item time { display: block; overflow: hidden; margin: 0; color: var(--soft); font-size: 8px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.savings-transaction-item > div:last-child { text-align: right; }
+.savings-transaction-item b { display: block; font-size: 11px; font-variant-numeric: tabular-nums; }
+.savings-transaction-item b.positive { color: #39755a; }
+.savings-transaction-item b.negative { color: var(--red); }
+.savings-transaction-item > div:last-child span { display: block; margin-top: 4px; color: var(--soft); font-size: 8px; font-variant-numeric: tabular-nums; }
 .savings-log-head { display: flex; align-items: flex-end; justify-content: space-between; margin: 20px 2px 8px; }
 .savings-log-list { display: grid; gap: 8px; }
 .savings-log-item { position: relative; padding: 12px 10px 11px 41px; border: 1px solid var(--line); border-radius: 7px; background: #fff; }

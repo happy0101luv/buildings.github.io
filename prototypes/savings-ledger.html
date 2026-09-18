@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f3f1ed" />
+  <title>储蓄流水账本模型 · 交互原型</title>
+  <style>
+    :root {
+      --paper: #f3f1ed;
+      --card: #fff;
+      --ink: #141311;
+      --muted: #77716a;
+      --line: #ddd8d1;
+      --red: #d51f27;
+      --red-soft: #fff0f0;
+      --green: #27865b;
+      --green-soft: #e9f6ef;
+      --amber: #a66d11;
+      --shadow: 0 12px 34px rgba(53, 45, 37, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { background: var(--paper); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    body { margin: 0; min-width: 320px; background: radial-gradient(circle at 82% -10%, #fff 0, transparent 26rem), var(--paper); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 3px solid rgba(213, 31, 39, .2); outline-offset: 2px; }
+    [hidden] { display: none !important; }
+
+    .shell { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 72px; }
+    .topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+    .eyebrow { margin: 0 0 7px; color: var(--red); font-size: .76rem; font-weight: 900; letter-spacing: .16em; }
+    h1 { margin: 0; font-size: clamp(1.65rem, 4vw, 2.55rem); line-height: 1.08; letter-spacing: -.04em; }
+    .topbar p:last-child { max-width: 650px; margin: 10px 0 0; color: var(--muted); font-size: .93rem; line-height: 1.65; }
+    .reset-button { flex: none; min-height: 42px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, .7); color: var(--muted); font-weight: 750; }
+    .reset-button:hover { border-color: #bdb5ad; color: var(--ink); }
+
+    .balance-card { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 25px 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: var(--shadow); }
+    .balance-card::before { position: absolute; inset: 0 auto 0 0; width: 7px; background: var(--red); content: ""; }
+    .balance-label { margin: 0 0 7px; color: var(--muted); font-size: .9rem; font-weight: 750; }
+    .balance-amount { margin: 0; font-size: clamp(2.35rem, 8vw, 4.4rem); font-weight: 900; line-height: 1; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+    .balance-meta { display: flex; flex-wrap: wrap; gap: 9px 18px; margin: 16px 0 0; color: var(--muted); font-size: .83rem; }
+    .balance-meta span { display: inline-flex; align-items: center; gap: 7px; }
+    .balance-meta i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .adjust-button { align-self: center; min-width: 128px; min-height: 46px; padding: 0 17px; border: 1px solid var(--red); border-radius: 10px; background: transparent; color: var(--red); font-weight: 850; }
+    .adjust-button:hover { background: var(--red-soft); }
+
+    .flow-strip { display: grid; grid-template-columns: repeat(4, 1fr); margin: 22px 0; border: 1px solid var(--line); border-radius: 14px; background: rgba(255, 255, 255, .56); }
+    .flow-step { position: relative; min-width: 0; padding: 14px 16px; }
+    .flow-step:not(:last-child)::after { position: absolute; top: 50%; right: -7px; z-index: 1; width: 13px; height: 13px; border-top: 1px solid var(--line); border-right: 1px solid var(--line); background: #f9f8f5; content: ""; transform: translateY(-50%) rotate(45deg); }
+    .flow-step b { display: block; margin-bottom: 4px; font-size: .9rem; }
+    .flow-step span { color: var(--muted); font-size: .76rem; }
+
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.22fr) minmax(300px, .78fr); gap: 22px; align-items: start; }
+    .card { border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: 0 9px 28px rgba(53, 45, 37, .055); }
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 22px 22px 17px; border-bottom: 1px solid var(--line); }
+    .card-head h2 { margin: 0; font-size: 1.12rem; }
+    .card-head p { margin: 6px 0 0; color: var(--muted); font-size: .82rem; line-height: 1.5; }
+    .status { flex: none; padding: 6px 10px; border-radius: 999px; background: #eeeae5; color: var(--muted); font-size: .75rem; font-weight: 850; }
+    .status.confirmed { background: var(--green-soft); color: var(--green); }
+    .status.editing { background: var(--red-soft); color: var(--red); }
+    .card-body { padding: 22px; }
+
+    .field { display: block; margin-bottom: 17px; }
+    .field-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: .9rem; font-weight: 780; }
+    .field-label small { color: #aaa39b; font-size: .74rem; font-weight: 600; }
+    .money-input, .text-input { display: flex; align-items: center; min-height: 51px; border: 1px solid #cbc5be; border-radius: 10px; background: #fff; transition: border-color .18s, box-shadow .18s; }
+    .money-input:focus-within, .text-input:focus-within { border-color: var(--red); box-shadow: 0 0 0 3px rgba(213, 31, 39, .08); }
+    .money-input b { padding-left: 15px; color: var(--red); font-size: 1.1rem; }
+    .money-input input, .text-input input { width: 100%; min-width: 0; height: 49px; padding: 0 15px; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 1.08rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .text-input input { font-size: .92rem; font-weight: 650; }
+    input:disabled { color: #655f59; -webkit-text-fill-color: #655f59; opacity: 1; }
+    .money-input:has(input:disabled), .text-input:has(input:disabled) { border-color: #e5e1dc; background: #f7f5f2; }
+
+    .estimate { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 5px 0 18px; padding: 15px 16px; border-left: 4px solid var(--red); background: #f7f4f1; }
+    .estimate span { color: var(--muted); font-size: .82rem; }
+    .estimate b { display: block; margin-top: 4px; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+    .formula { flex: none; color: #a29b94; font-size: .75rem; text-align: right; }
+    .change-preview { margin: -4px 0 17px; padding: 11px 13px; border-radius: 9px; background: #f5f2ee; color: var(--muted); font-size: .79rem; line-height: 1.55; }
+    .change-preview strong { color: var(--ink); }
+    .change-preview.positive strong { color: var(--green); }
+    .change-preview.negative strong { color: var(--red); }
+    .actions { display: flex; gap: 10px; }
+    .actions button { min-height: 47px; border-radius: 10px; font-weight: 850; }
+    .primary { flex: 1; border: 1px solid var(--red); background: var(--red); color: #fff; box-shadow: 0 8px 18px rgba(213, 31, 39, .17); }
+    .primary:hover { background: #bb1820; }
+    .secondary { padding: 0 18px; border: 1px solid var(--line); background: #fff; color: var(--muted); }
+    .edit-notice { margin: 0 0 17px; padding: 12px 14px; border: 1px solid #f2c5c7; border-radius: 10px; background: var(--red-soft); color: #982128; font-size: .82rem; line-height: 1.55; }
+
+    .explain { position: sticky; top: 18px; }
+    .explain .card-body { padding-top: 19px; }
+    .principle { margin: 0; padding: 16px; border-radius: 12px; background: #171614; color: #fff; }
+    .principle span { display: block; margin-bottom: 8px; color: #aaa49c; font-size: .74rem; font-weight: 850; letter-spacing: .12em; }
+    .principle strong { font-size: 1.05rem; line-height: 1.7; }
+    .principle b { color: #ff4d54; }
+    .rule-list { margin: 19px 0 0; padding: 0; list-style: none; }
+    .rule-list li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 12px 0; border-bottom: 1px solid #eeeae5; }
+    .rule-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+    .rule-list i { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 50%; background: var(--red-soft); color: var(--red); font-size: .76rem; font-style: normal; font-weight: 900; }
+    .rule-list b { display: block; margin-bottom: 4px; font-size: .86rem; }
+    .rule-list span { color: var(--muted); font-size: .78rem; line-height: 1.55; }
+
+    .records { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 22px; }
+    .records .card-head { align-items: center; }
+    .count { color: var(--muted); font-size: .77rem; }
+    .list { padding: 0 22px; }
+    .empty { padding: 38px 20px; color: #a29b94; font-size: .86rem; text-align: center; }
+
+    .transaction { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 16px 0; border-bottom: 1px solid #eeeae5; }
+    .transaction:last-child { border-bottom: 0; }
+    .transaction h3 { margin: 0 0 5px; font-size: .9rem; }
+    .transaction p, .transaction time { margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+    .transaction-amount { text-align: right; }
+    .transaction-amount strong { display: block; font-size: 1rem; font-variant-numeric: tabular-nums; }
+    .transaction-amount strong.positive { color: var(--green); }
+    .transaction-amount strong.negative { color: var(--red); }
+    .transaction-amount span { color: var(--muted); font-size: .72rem; }
+
+    .log-item { padding: 17px 0; border-bottom: 1px solid #eeeae5; }
+    .log-item:last-child { border-bottom: 0; }
+    .log-title { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .log-title strong { font-size: .9rem; }
+    .log-title time { color: var(--muted); font-size: .72rem; }
+    .log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin: 0; }
+    .log-grid div { min-width: 0; }
+    .log-grid dt { margin-bottom: 3px; color: #979089; font-size: .72rem; }
+    .log-grid dd { overflow: hidden; margin: 0; font-size: .83rem; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+    .log-grid .wide { grid-column: 1 / -1; }
+    .log-grid .wide dd { white-space: normal; }
+
+    dialog { width: min(440px, calc(100% - 28px)); padding: 0; border: 0; border-radius: 16px; box-shadow: 0 24px 80px rgba(25, 20, 16, .28); }
+    dialog::backdrop { background: rgba(19, 17, 15, .45); backdrop-filter: blur(3px); }
+    .dialog-inner { padding: 23px; }
+    .dialog-inner h2 { margin: 0 0 7px; font-size: 1.24rem; }
+    .dialog-inner > p { margin: 0 0 20px; color: var(--muted); font-size: .83rem; line-height: 1.6; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; }
+    .dialog-actions button { min-height: 43px; padding: 0 18px; border-radius: 9px; font-weight: 800; }
+    .dialog-actions .cancel { border: 1px solid var(--line); background: #fff; color: var(--muted); }
+    .dialog-actions .confirm { border: 1px solid var(--red); background: var(--red); color: #fff; }
+    .toast { position: fixed; left: 50%; bottom: 24px; z-index: 20; max-width: calc(100% - 32px); padding: 11px 16px; border-radius: 9px; background: #171614; color: #fff; font-size: .82rem; box-shadow: 0 12px 28px rgba(0, 0, 0, .2); transform: translate(-50%, 20px); opacity: 0; pointer-events: none; transition: .2s ease; }
+    .toast.show { transform: translate(-50%, 0); opacity: 1; }
+
+    @media (max-width: 820px) {
+      .workspace, .records { grid-template-columns: 1fr; }
+      .explain { position: static; }
+      .records { gap: 16px; }
+    }
+
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 22px, 1120px); padding-top: 22px; }
+      .topbar { align-items: flex-start; }
+      .topbar p:last-child { font-size: .85rem; }
+      .reset-button { min-height: 38px; padding: 0 11px; font-size: .76rem; }
+      .balance-card { grid-template-columns: 1fr; padding: 22px 20px 20px 24px; }
+      .balance-amount { font-size: 2.75rem; }
+      .adjust-button { width: 100%; }
+      .flow-strip { grid-template-columns: 1fr 1fr; }
+      .flow-step:nth-child(2)::after { display: none; }
+      .flow-step:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .card-head, .card-body { padding-left: 17px; padding-right: 17px; }
+      .list { padding: 0 17px; }
+      .estimate { align-items: flex-start; }
+      .formula { padding-top: 4px; }
+      .actions { flex-wrap: wrap; }
+      .secondary { flex: 1; }
+      .primary { flex-basis: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">SAVINGS LEDGER DEMO</p>
+        <h1>储蓄流水账本模型</h1>
+        <p>这是独立演示页。所有操作只保存在当前浏览器，不会影响现有小程序数据。</p>
+      </div>
+      <button class="reset-button" id="resetDemo" type="button">重置演示</button>
+    </header>
+
+    <section class="balance-card" aria-labelledby="balanceTitle">
+      <div>
+        <p class="balance-label" id="balanceTitle">当前存款</p>
+        <p class="balance-amount" id="currentBalance">¥100,000.00</p>
+        <div class="balance-meta">
+          <span><i></i>由下方全部有效流水自动计算</span>
+          <span id="transactionSummary">1 笔有效流水</span>
+        </div>
+      </div>
+      <button class="adjust-button" id="openAdjustment" type="button">手动调整</button>
+    </section>
+
+    <div class="flow-strip" aria-label="流水账本操作流程">
+      <div class="flow-step"><b>1. 填写当月数据</b><span>工资、支出、实际储蓄</span></div>
+      <div class="flow-step"><b>2. 首次确认</b><span>实际储蓄生成入账流水</span></div>
+      <div class="flow-step"><b>3. 记录锁定</b><span>二次修改先进入编辑模式</span></div>
+      <div class="flow-step"><b>4. 差额修正</b><span>只新增差额，不覆盖旧流水</span></div>
+    </div>
+
+    <div class="workspace">
+      <section class="card" aria-labelledby="monthTitle">
+        <header class="card-head">
+          <div>
+            <h2 id="monthTitle">2026年9月储蓄记录</h2>
+            <p>示例数据已经填好，可以直接确认后再尝试修改。</p>
+          </div>
+          <span class="status" id="monthStatus">待确认</span>
+        </header>
+        <div class="card-body">
+          <p class="edit-notice" id="editNotice" hidden>正在编辑已确认记录。保存后不会删除原流水，只会新增一笔实际储蓄差额流水。</p>
+
+          <label class="field">
+            <span class="field-label">本月工资收入</span>
+            <span class="money-input"><b>¥</b><input id="salaryInput" type="number" min="0" step="0.01" inputmode="decimal" value="18000" /></span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">本月生活支出 <small>正式版本将来自生活记账</small></span>
+            <span class="money-input"><b>¥</b><input id="expenseInput" type="number" min="0" step="0.01" inputmode="decimal" value="7650" /></span>
+          </label>
+
+          <div class="estimate">
+            <div><span>预计可储蓄</span><b id="estimatedSaving">¥10,350.00</b></div>
+            <div class="formula">工资 − 支出<br />自动计算</div>
+          </div>
+
+          <label class="field">
+            <span class="field-label">实际储蓄 <small>确认后才影响当前存款</small></span>
+            <span class="money-input"><b>¥</b><input id="actualInput" type="number" min="0" step="0.01" inputmode="decimal" value="10000" /></span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">备注 <small>选填</small></span>
+            <span class="text-input"><input id="noteInput" type="text" maxlength="60" value="本月有临时聚餐支出" placeholder="例如：本月奖金单独存入" /></span>
+          </label>
+
+          <p class="change-preview" id="changePreview">首次确认后，当前存款将增加 <strong>¥10,000.00</strong>。</p>
+
+          <div class="actions">
+            <button class="secondary" id="cancelEdit" type="button" hidden>取消编辑</button>
+            <button class="primary" id="saveMonth" type="button">确认本月记录</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="card explain" aria-labelledby="explainTitle">
+        <header class="card-head">
+          <div><h2 id="explainTitle">为什么使用流水</h2><p>余额是计算结果，不是唯一数据源。</p></div>
+        </header>
+        <div class="card-body">
+          <p class="principle"><span>核心公式</span><strong>当前存款 = 初始存款 <b>+</b> 全部有效流水</strong></p>
+          <ol class="rule-list">
+            <li><i>1</i><div><b>预计储蓄不入账</b><span>它只帮助判断当月可能存下多少钱。</span></div></li>
+            <li><i>2</i><div><b>实际储蓄才入账</b><span>首次确认后，生成一笔月度储蓄流水。</span></div></li>
+            <li><i>3</i><div><b>修改只记差额</b><span>10,000 改成 9,800，只新增 −200 的修正流水。</span></div></li>
+            <li><i>4</i><div><b>历史不被覆盖</b><span>每一步都可以追溯变动前后的金额和原因。</span></div></li>
+          </ol>
+        </div>
+      </aside>
+    </div>
+
+    <div class="records">
+      <section class="card" aria-labelledby="ledgerTitle">
+        <header class="card-head">
+          <div><h2 id="ledgerTitle">储蓄流水</h2><p>只有这里的金额会改变当前存款。</p></div>
+          <span class="count" id="ledgerCount">1笔</span>
+        </header>
+        <div class="list" id="ledgerList"></div>
+      </section>
+
+      <section class="card" aria-labelledby="logTitle">
+        <header class="card-head">
+          <div><h2 id="logTitle">操作日志</h2><p>记录用户确认、编辑和调整的过程。</p></div>
+          <span class="count" id="logCount">0条</span>
+        </header>
+        <div class="list" id="logList"></div>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="adjustDialog">
+    <form class="dialog-inner" id="adjustForm" method="dialog">
+      <h2>调整当前存款</h2>
+      <p>填写调整后的目标金额。系统会自动计算差额，并新增一笔流水，不直接覆盖原余额。</p>
+      <label class="field">
+        <span class="field-label">调整后的存款</span>
+        <span class="money-input"><b>¥</b><input id="targetBalance" type="number" min="0" step="0.01" inputmode="decimal" required /></span>
+      </label>
+      <label class="field">
+        <span class="field-label">变更说明 <small>建议填写</small></span>
+        <span class="text-input"><input id="adjustNote" type="text" maxlength="60" placeholder="例如：补录银行利息" /></span>
+      </label>
+      <p class="change-preview" id="adjustPreview">当前没有金额变化。</p>
+      <div class="dialog-actions">
+        <button class="cancel" value="cancel" type="button" id="closeAdjustment">取消</button>
+        <button class="confirm" value="default" type="submit">确认调整</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      const STORAGE_KEY = "wanwu-savings-ledger-demo-v1";
+      const monthKey = "2026-09";
+
+      const createSeed = () => ({
+        month: {
+          salary: 18000,
+          expense: 7650,
+          actual: 10000,
+          note: "本月有临时聚餐支出",
+          confirmed: false,
+          postedActual: 0,
+          revision: 0
+        },
+        editing: false,
+        transactions: [
+          {
+            id: "opening-balance",
+            operationId: "seed-opening-balance",
+            type: "initial_balance",
+            title: "初始存款",
+            amount: 100000,
+            note: "开始使用流水账本时录入",
+            createdAt: "2026-09-01T09:00:00+08:00"
+          }
+        ],
+        logs: []
+      });
+
+      const money = (value) => new Intl.NumberFormat("zh-CN", {
+        style: "currency",
+        currency: "CNY",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(Number(value || 0));
+
+      const signedMoney = (value) => `${Number(value) >= 0 ? "+" : "−"}${money(Math.abs(Number(value || 0)))}`;
+      const nowText = (date) => new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(date));
+      const currentBalance = () => state.transactions.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const estimate = (month = state.month) => Number(month.salary || 0) - Number(month.expense || 0);
+      const uid = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+      const loadState = () => {
+        try {
+          const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+          if (saved && saved.month && Array.isArray(saved.transactions) && Array.isArray(saved.logs)) return saved;
+        } catch {}
+        return createSeed();
+      };
+
+      let state = loadState();
+      state.editing = false;
+
+      const els = {
+        currentBalance: document.querySelector("#currentBalance"),
+        transactionSummary: document.querySelector("#transactionSummary"),
+        monthStatus: document.querySelector("#monthStatus"),
+        salary: document.querySelector("#salaryInput"),
+        expense: document.querySelector("#expenseInput"),
+        actual: document.querySelector("#actualInput"),
+        note: document.querySelector("#noteInput"),
+        estimated: document.querySelector("#estimatedSaving"),
+        preview: document.querySelector("#changePreview"),
+        editNotice: document.querySelector("#editNotice"),
+        cancelEdit: document.querySelector("#cancelEdit"),
+        saveMonth: document.querySelector("#saveMonth"),
+        ledgerList: document.querySelector("#ledgerList"),
+        ledgerCount: document.querySelector("#ledgerCount"),
+        logList: document.querySelector("#logList"),
+        logCount: document.querySelector("#logCount"),
+        dialog: document.querySelector("#adjustDialog"),
+        targetBalance: document.querySelector("#targetBalance"),
+        adjustNote: document.querySelector("#adjustNote"),
+        adjustPreview: document.querySelector("#adjustPreview"),
+        toast: document.querySelector("#toast")
+      };
+
+      const saveState = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const readNumber = (input) => input.value.trim() === "" ? null : Number(input.value);
+      const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+
+      let toastTimer;
+      const toast = (message) => {
+        els.toast.textContent = message;
+        els.toast.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => els.toast.classList.remove("show"), 2200);
+      };
+
+      function renderForm() {
+        const locked = state.month.confirmed && !state.editing;
+        els.salary.value = state.month.salary ?? "";
+        els.expense.value = state.month.expense ?? "";
+        els.actual.value = state.month.actual ?? "";
+        els.note.value = state.month.note || "";
+        [els.salary, els.expense, els.actual, els.note].forEach((input) => { input.disabled = locked; });
+        els.monthStatus.textContent = state.editing ? "编辑中" : state.month.confirmed ? "已确认" : "待确认";
+        els.monthStatus.className = `status${state.editing ? " editing" : state.month.confirmed ? " confirmed" : ""}`;
+        els.editNotice.hidden = !state.editing;
+        els.cancelEdit.hidden = !state.editing;
+        els.saveMonth.textContent = locked ? "编辑本月记录" : state.editing ? "保存修改" : "确认本月记录";
+        updateMonthPreview();
+      }
+
+      function updateMonthPreview() {
+        const salary = readNumber(els.salary) ?? 0;
+        const expense = readNumber(els.expense) ?? 0;
+        const actual = readNumber(els.actual) ?? 0;
+        const estimated = salary - expense;
+        els.estimated.textContent = money(estimated);
+
+        const delta = state.month.confirmed ? actual - Number(state.month.postedActual || 0) : actual;
+        els.preview.className = `change-preview ${delta > 0 ? "positive" : delta < 0 ? "negative" : ""}`;
+        if (state.month.confirmed && !state.editing) {
+          els.preview.innerHTML = "本月记录已锁定。进入编辑模式后，系统只会把实际储蓄的差额计入当前存款。";
+        } else if (state.month.confirmed) {
+          els.preview.innerHTML = delta === 0
+            ? "实际储蓄没有变化，保存后当前存款保持不变。"
+            : `与原实际储蓄相比，保存后将新增一笔 <strong>${signedMoney(delta)}</strong> 的修正流水。`;
+        } else {
+          els.preview.innerHTML = `首次确认后，当前存款将增加 <strong>${money(actual)}</strong>。`;
+        }
+      }
+
+      function renderLedger() {
+        let runningBalance = 0;
+        const rows = state.transactions.map((item) => {
+          runningBalance += Number(item.amount || 0);
+          return { ...item, balanceAfter: runningBalance };
+        }).reverse();
+
+        els.currentBalance.textContent = money(currentBalance());
+        els.transactionSummary.textContent = `${rows.length} 笔有效流水`;
+        els.ledgerCount.textContent = `${rows.length}笔`;
+        els.ledgerList.innerHTML = rows.length ? rows.map((item) => `
+          <article class="transaction">
+            <div>
+              <h3>${escapeHtml(item.title)}</h3>
+              <p>${escapeHtml(item.note || "无备注")}</p>
+              <time>${escapeHtml(nowText(item.createdAt))}</time>
+            </div>
+            <div class="transaction-amount">
+              <strong class="${item.amount >= 0 ? "positive" : "negative"}">${signedMoney(item.amount)}</strong>
+              <span>余额 ${money(item.balanceAfter)}</span>
+            </div>
+          </article>`).join("") : '<p class="empty">还没有储蓄流水</p>';
+      }
+
+      function renderLogs() {
+        els.logCount.textContent = `${state.logs.length}条`;
+        els.logList.innerHTML = state.logs.length ? state.logs.map((log) => `
+          <article class="log-item">
+            <div class="log-title"><strong>${escapeHtml(log.title)}</strong><time>${escapeHtml(nowText(log.createdAt))}</time></div>
+            <dl class="log-grid">
+              <div><dt>预计储蓄</dt><dd>${log.estimated == null ? "—" : money(log.estimated)}</dd></div>
+              <div><dt>实际储蓄</dt><dd>${log.actual == null ? "—" : log.previousActual == null ? money(log.actual) : `${money(log.previousActual)} → ${money(log.actual)}`}</dd></div>
+              <div><dt>当前存款</dt><dd>${log.balanceBefore == null ? money(log.balanceAfter) : `${money(log.balanceBefore)} → ${money(log.balanceAfter)}`}</dd></div>
+              ${log.note ? `<div class="wide"><dt>备注</dt><dd>${escapeHtml(log.note)}</dd></div>` : ""}
+            </dl>
+          </article>`).join("") : '<p class="empty">确认或修改记录后，操作过程会显示在这里。</p>';
+      }
+
+      function render() {
+        renderForm();
+        renderLedger();
+        renderLogs();
+      }
+
+      function saveMonth() {
+        if (state.month.confirmed && !state.editing) {
+          state.editing = true;
+          renderForm();
+          els.salary.focus();
+          return;
+        }
+
+        const salary = readNumber(els.salary);
+        const expense = readNumber(els.expense);
+        const actual = readNumber(els.actual);
+        const note = els.note.value.trim();
+        if (salary == null || salary < 0 || expense == null || expense < 0 || actual == null || actual < 0) {
+          toast("请填写有效的工资、支出和实际储蓄");
+          return;
+        }
+
+        const wasConfirmed = state.month.confirmed;
+        const previousActual = Number(state.month.postedActual || 0);
+        const beforeBalance = currentBalance();
+        const delta = actual - previousActual;
+        const createdAt = new Date().toISOString();
+
+        if (delta !== 0) {
+          state.transactions.push({
+            id: uid("txn"),
+            operationId: uid("op"),
+            type: wasConfirmed ? "monthly_adjustment" : "monthly_saving",
+            title: wasConfirmed ? "2026年9月储蓄修正" : "2026年9月实际储蓄",
+            amount: delta,
+            note: wasConfirmed ? `实际储蓄由 ${money(previousActual)} 修改为 ${money(actual)}` : (note || "月度记录首次确认"),
+            relatedMonth: monthKey,
+            createdAt
+          });
+        }
+
+        state.month = {
+          salary,
+          expense,
+          actual,
+          note,
+          confirmed: true,
+          postedActual: actual,
+          revision: Number(state.month.revision || 0) + 1
+        };
+        state.logs.unshift({
+          id: uid("log"),
+          title: wasConfirmed ? "2026年9月记录已修改" : "2026年9月记录已确认",
+          estimated: salary - expense,
+          actual,
+          previousActual: wasConfirmed ? previousActual : null,
+          balanceBefore: wasConfirmed ? beforeBalance : null,
+          balanceAfter: beforeBalance + delta,
+          note,
+          createdAt
+        });
+        state.editing = false;
+        saveState();
+        render();
+        toast(wasConfirmed ? `修改已保存，余额变化 ${signedMoney(delta)}` : "本月实际储蓄已入账");
+      }
+
+      function openAdjustment() {
+        els.targetBalance.value = currentBalance().toFixed(2);
+        els.adjustNote.value = "";
+        updateAdjustmentPreview();
+        els.dialog.showModal();
+        setTimeout(() => els.targetBalance.focus(), 0);
+      }
+
+      function updateAdjustmentPreview() {
+        const target = readNumber(els.targetBalance);
+        const delta = target == null ? 0 : target - currentBalance();
+        els.adjustPreview.className = `change-preview ${delta > 0 ? "positive" : delta < 0 ? "negative" : ""}`;
+        els.adjustPreview.innerHTML = delta === 0
+          ? "当前没有金额变化。"
+          : `系统将新增一笔 <strong>${signedMoney(delta)}</strong> 的手动调整流水。`;
+      }
+
+      function applyAdjustment(event) {
+        event.preventDefault();
+        const target = readNumber(els.targetBalance);
+        const beforeBalance = currentBalance();
+        if (target == null || target < 0) return toast("请输入有效的目标存款金额");
+        const delta = target - beforeBalance;
+        if (delta === 0) return toast("目标金额与当前存款相同");
+        const note = els.adjustNote.value.trim() || "手动校正当前存款";
+        const createdAt = new Date().toISOString();
+        state.transactions.push({
+          id: uid("txn"),
+          operationId: uid("op"),
+          type: delta > 0 ? "manual_increase" : "manual_decrease",
+          title: delta > 0 ? "手动增加存款" : "手动减少存款",
+          amount: delta,
+          note,
+          createdAt
+        });
+        state.logs.unshift({
+          id: uid("log"),
+          title: "当前存款已手动调整",
+          estimated: estimate(),
+          actual: state.month.confirmed ? state.month.actual : null,
+          previousActual: null,
+          balanceBefore: beforeBalance,
+          balanceAfter: target,
+          note,
+          createdAt
+        });
+        saveState();
+        els.dialog.close();
+        render();
+        toast(`已新增 ${signedMoney(delta)} 调整流水`);
+      }
+
+      [els.salary, els.expense, els.actual].forEach((input) => input.addEventListener("input", updateMonthPreview));
+      els.saveMonth.addEventListener("click", saveMonth);
+      els.cancelEdit.addEventListener("click", () => { state.editing = false; renderForm(); toast("已取消编辑"); });
+      document.querySelector("#openAdjustment").addEventListener("click", openAdjustment);
+      document.querySelector("#closeAdjustment").addEventListener("click", () => els.dialog.close());
+      document.querySelector("#adjustForm").addEventListener("submit", applyAdjustment);
+      els.targetBalance.addEventListener("input", updateAdjustmentPreview);
+      document.querySelector("#resetDemo").addEventListener("click", () => {
+        if (!window.confirm("确定重置全部演示数据吗？")) return;
+        state = createSeed();
+        saveState();
+        render();
+        toast("演示数据已重置");
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
